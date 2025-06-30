@@ -60,7 +60,7 @@ ClickHouse дал резкий прирост в аналитике, но тре
 Использование ClickHouse + Grafana позволило Ozon построить высоконагруженную аналитическую систему для мониторинга бизнес-метрик $
 
 
-### 3. Компания: Maxilect (Habr-кейс)
+### 3. Компания: Maxilect
 
 **Источник**: [Habr: Опыт использования ClickHouse в проде](https://habr.com/ru/companies/maxilect/articles/761258/)
 
