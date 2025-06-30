@@ -22,3 +22,4 @@
 
 - [Курс на OTUS](https://otus.ru)
 - [ClickHouse Docs](https://clickhouse.com/docs)
+📘 [Глоссарий терминов](docs/GLOSSARY.md)
