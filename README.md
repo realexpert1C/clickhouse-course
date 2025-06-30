@@ -20,6 +20,6 @@
 
 ## Ссылки
 
-- [Курс на OTUS](https://otus.ru)
+- [Курс на OTUS](https://otus.ru/lessons/clickhouse/)
 - [ClickHouse Docs](https://clickhouse.com/docs)
 - [Глоссарий терминов](docs/GLOSSARY.md)
