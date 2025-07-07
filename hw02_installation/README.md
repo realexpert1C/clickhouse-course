@@ -160,8 +160,8 @@ FROM url(
 
 ### ✅ Шаг 3: Скриншоты проверки
 
-* Подключение к ClickHouse: Скриншот1, Скриншот2, Скриншот3, Скриншот4
-* Запросы: Скриншот5, Скриншот6, Скриншот7, Скриншот8
+* Подключение к ClickHouse: [Скриншот1](https://github.com/realexpert1C/clickhouse-course/blob/main/images/connect1.png), [Скриншот2](https://github.com/realexpert1C/clickhouse-course/blob/main/images/connect2.png), [Скриншот3](https://github.com/realexpert1C/clickhouse-course/blob/main/images/connect3.png), [Скриншот4](https://github.com/realexpert1C/clickhouse-course/blob/main/images/connect4.png)
+* Запросы: [Скриншот5](https://github.com/realexpert1C/clickhouse-course/blob/main/images/select1.png), [Скриншот6](https://github.com/realexpert1C/clickhouse-course/blob/main/images/select2.png), [Скриншот7](https://github.com/realexpert1C/clickhouse-course/blob/main/images/select3.png), [Скриншот8](https://github.com/realexpert1C/clickhouse-course/blob/main/images/select4.png)
 
 ---
 
