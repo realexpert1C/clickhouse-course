@@ -210,6 +210,116 @@ docker exec -it clickhouse cat /etc/clickhouse-server/config.xml
 | 2 | С ограничением ресурсов (80%) | 0.730 | \~14.62 млн | \~618 | 1.162–1.640 сек       |
 | 3 | Оптимизация без ограничений   | 0.870 | \~17.41 млн | \~737 | 0.909–1.331 сек       |
 
+## Результаты тестирования
+
+### Тест 1: Конфигурация по умолчанию
+
+```bash
+Loaded 1 queries.
+
+Queries executed: 10 (100%).
+
+localhost:9000, queries: 10, QPS: 0.813, RPS: 16269366.674, MiB/s: 688.080, result RPS: 8131040.631, result MiB/s: 321.809.
+
+0%        1.023 sec.  
+10%       1.026 sec.  
+20%       1.129 sec.  
+30%       1.188 sec.  
+40%       1.209 sec.  
+50%       1.225 sec.  
+60%       1.225 sec.  
+70%       1.234 sec.  
+80%       1.278 sec.  
+90%       1.361 sec.  
+95%       1.464 sec.  
+99%       1.464 sec.  
+99.9%     1.464 sec.  
+99.99%    1.464 sec.
+```
+
+---
+
+### Тест 2: Кастомный конфиг (ограничение использования ресурсов до 80%)
+
+```xml
+<clickhouse>
+    <max_server_memory_usage>10307921510</max_server_memory_usage> 
+    <max_memory_usage>1030792151</max_memory_usage> 
+    <max_threads>6</max_threads> 
+    <max_concurrent_queries>10</max_concurrent_queries>
+    <background_pool_size>6</background_pool_size>
+    <background_buffer_flush_schedule_pool_size>2</background_buffer_flush_schedule_pool_size>
+    <background_fetches_pool_size>3</background_fetches_pool_size>
+</clickhouse>
+```
+
+```bash
+Queries executed: 10 (100%).
+
+localhost:9000, queries: 10, QPS: 0.730, RPS: 14619446.917, MiB/s: 618.571, result RPS: 7300472.300, result MiB/s: 289.173.
+
+0%        1.162 sec.  
+10%       1.178 sec.  
+20%       1.220 sec.  
+30%       1.226 sec.  
+40%       1.275 sec.  
+50%       1.376 sec.  
+60%       1.376 sec.  
+70%       1.453 sec.  
+80%       1.465 sec.  
+90%       1.513 sec.  
+95%       1.640 sec.  
+99%       1.640 sec.  
+99.9%     1.640 sec.  
+99.99%    1.640 sec.
+```
+
+---
+
+### Тест 3: Кастомный конфиг 2 (расширенные фоны и кэш)
+
+```xml
+<clickhouse>
+    <merge_tree>
+        <number_of_free_entries_in_pool_to_execute_mutation>0</number_of_free_entries_in_pool_to_execute_mutation>
+    </merge_tree>
+
+    <background_pool_size>16</background_pool_size>
+    <background_buffer_flush_schedule_pool_size>4</background_buffer_flush_schedule_pool_size>
+    <background_fetches_pool_size>6</background_fetches_pool_size>
+
+    <query_cache>
+        <size_in_bytes>1073741824</size_in_bytes>
+        <max_entries>4096</max_entries>
+    </query_cache>
+
+    <max_threads>0</max_threads>
+    <max_concurrent_queries>100</max_concurrent_queries>
+</clickhouse>
+```
+
+```bash
+Queries executed: 10 (100%).
+
+localhost:9000, queries: 10, QPS: 0.870, RPS: 17412431.214, MiB/s: 736.929, result RPS: 8699823.673, result MiB/s: 344.112.
+
+0%        0.909 sec.  
+10%       0.967 sec.  
+20%       0.997 sec.  
+30%       1.057 sec.  
+40%       1.170 sec.  
+50%       1.181 sec.  
+60%       1.181 sec.  
+70%       1.189 sec.  
+80%       1.252 sec.  
+90%       1.260 sec.  
+95%       1.331 sec.  
+99%       1.331 sec.  
+99.9%     1.331 sec.  
+99.99%    1.331 sec.
+```
+
+
 **Вывод:** ClickHouse изначально оптимизирован и работает эффективно на настройках по умолчанию. Жесткое ограничение ресурсов заметно снижает производительность, а грамотная ручная настройка может улучшить показатели, особенно при интенсивной нагрузке и сложных запросах.
 
 
