@@ -107,9 +107,9 @@ cat file.csv | clickhouse-client --query="INSERT INTO table FORMAT CSV"
 ---
 
 🧠 Полезные ссылки
-- Документация ClickHouse
-- Инсталляция ClickHouse
-- ClickHouse Keeper
+- [Документация ClickHouse](https://clickhouse.com/docs)
+- [Инсталляция ClickHouse](https://clickhouse.com/docs/en/install)
+- [ClickHouse Keeper](https://clickhouse.com/docs/en/operations/clickhouse-keeper/)
 
 ---
 
