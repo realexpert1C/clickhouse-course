@@ -21,7 +21,7 @@ _📊 Анализ через системные таблицы:_
 SELECT * FROM system.databases WHERE name = 'restaurant_db';
 ```
 
-_📌 Вывод: база данных создана с движком Atomic, см. [скриншот1](#), [скриншот2](#)_
+_📌 Вывод: база данных создана с движком Atomic, см. [скриншот1](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_1_1.png), [скриншот2](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_1_2.png)_
 
 ---
 
@@ -54,9 +54,10 @@ SELECT name, engine, total_rows FROM system.tables WHERE database = 'restaurant_
 SELECT * FROM system.columns WHERE table = 'menu';
 ```
 
-_📌 Вывод: таблица создана, типы колонок подтверждены (см. [скриншот3](#), [скриншот4](#), [скриншот5](#))._
+_📌 Вывод: таблица создана, типы колонок подтверждены (см. [скриншот3](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_3.png), [скриншот4](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_4.png), [скриншот5](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_5.png))._
 
 ---
+
 
 
 
