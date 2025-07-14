@@ -58,6 +58,40 @@ _📌 Вывод: таблица создана, типы колонок под�
 
 ---
 
+### ✍️ Шаг 3: CRUD-операции
+
+* Read:
+
+```sql
+SELECT * FROM menu;
+```
+
+* Update (через DELETE + INSERT):
+
+```
+ALTER TABLE menu DELETE WHERE item_id = 2;
+INSERT INTO menu VALUES (2, 'Цезарь с курицей', 'Салаты', 390.00, 1);
+```
+
+* Delete:
+
+```
+ALTER TABLE menu DELETE WHERE item_id = 3;
+```
+
+_📊 Анализ через system и через select * from menu:_
+
+```sql
+SELECT query, type, event_time, read_rows, result_rows
+FROM system.query_log
+WHERE query LIKE '%menu%'
+AND type = 'QueryFinish'
+ORDER BY event_time DESC
+LIMIT 5;
+```
+
+_📌 Вывод: действия CRUD отражаются в логах с указанием времени и объема данных (см. [скриншот6](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_3.png), [скриншот7](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_4.png), [скриншот8](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_5.png), [скриншот9](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_5.png), [скриншот10](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_5.png))._
+
 
 
 
