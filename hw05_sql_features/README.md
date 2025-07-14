@@ -68,14 +68,14 @@ SELECT * FROM menu;
 
 * Update (через DELETE + INSERT):
 
-```
+```sql
 ALTER TABLE menu DELETE WHERE item_id = 2;
 INSERT INTO menu VALUES (2, 'Цезарь с курицей', 'Салаты', 390.00, 1);
 ```
 
 * Delete:
 
-```
+```sql
 ALTER TABLE menu DELETE WHERE item_id = 3;
 ```
 
@@ -145,7 +145,8 @@ CREATE TABLE expensive_log
     price Float32
 ) ENGINE = MergeTree
 ORDER BY id;
-
+```
+```sql
 CREATE MATERIALIZED VIEW log_mv TO expensive_log AS
 SELECT id, name, price FROM menu WHERE price > 1000;
 ```
@@ -153,7 +154,8 @@ SELECT id, name, price FROM menu WHERE price > 1000;
 _📊 Проверка автоматической вставки:_
 ```sql
 INSERT INTO menu VALUES (4, 'Рибай', 'Горячее', 1800, 1);
-
+```
+```sql
 SELECT * FROM expensive_log;
 ```
 _📊 Контроль через:_
