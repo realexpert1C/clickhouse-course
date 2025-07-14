@@ -116,9 +116,10 @@ _📌 Вывод: структура таблицы успешно измене�
 
 ```sql
 SELECT * FROM system.numbers LIMIT 1000;
-
-CREATE TABLE numbers_copy ENGINE = MergeTree ORDER BY number AS
-SELECT * FROM system.numbers LIMIT 1000; --- Взять по ссылке из задания
+```
+_📊 Проверка:_
+```sql
+SELECT name, total_rows, total_bytes FROM system.tables WHERE name = 'numbers';
 ```
 --- 
 ### 🧬 Шаг 6. Материализация таблицы
