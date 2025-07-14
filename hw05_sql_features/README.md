@@ -90,7 +90,7 @@ ORDER BY event_time DESC
 LIMIT 5;
 ```
 
-_📌 Вывод: действия CRUD отражаются в логах с указанием времени и объема данных (см. [скриншот6](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_3.png), [скриншот7](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_4.png), [скриншот8](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_5.png), [скриншот9](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_5.png), [скриншот10](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_5.png))._
+_📌 Вывод: действия CRUD отражаются в логах с указанием времени и объема данных (см. [скриншот6](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_1_1.png), [скриншот7](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_4.png), [скриншот8](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_5.png), [скриншот9](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_5.png), [скриншот10](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_2_5.png))._
 
 ---
 ### 🧱 Шаг 4. Изменение структуры таблицы
