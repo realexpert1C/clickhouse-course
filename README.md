@@ -29,6 +29,7 @@
 4. **Язык запросов ClickHouse**
    - SELECT, WHERE, GROUP BY, JOIN
    - Массивы, вложенные структуры, функции
+   - ⚡️ [Домашнее задание](https://github.com/realexpert1C/clickhouse-course/tree/main/hw05_sql_features)
 
 5. **Архитектура хранения и сжатие**
    - Устройство хранения
