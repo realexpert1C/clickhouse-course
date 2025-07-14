@@ -108,7 +108,7 @@ _📊 Проверка через system.columns:_
 SELECT name, type FROM system.columns WHERE table = 'menu';
 ```
 
-_📌 Вывод: структура таблицы успешно изменена._
+_📌 Вывод: структура таблицы успешно изменена (см. [скриншот11](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_4_11.png), [скриншот12](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step3_4_12.png))._
 
 --- 
 
