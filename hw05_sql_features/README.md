@@ -1,5 +1,4 @@
 
-
 ## 🧩 Домашнее задание: Работа с SQL в ClickHouse
 
 ---
@@ -325,5 +324,6 @@ ALTER TABLE logs ATTACH PARTITION '2023-01-01'; -- Восстановление
 
 - [Материалы курса OTUS](https://otus.ru/lessons/clickhouse/)
 
+- [PRQL документация](https://prql-lang.org/)
 
 
