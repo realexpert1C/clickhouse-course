@@ -138,31 +138,88 @@ _📌 Вывод: структура и объем скопированы._
 --- 
 ### 🧠 Шаг 7: Создание и использование Materialized View
 
-Создаём лог по дорогим блюдам:
+---
+
+* 🔧 Создание таблицы назначения
 ```sql
-CREATE TABLE expensive_menu_log
+CREATE TABLE expensive_log
 (
-    item_id UInt32,
+    id UInt32,
     name String,
-    price Decimal(8, 2)
+    price Float32
 ) ENGINE = MergeTree
-ORDER BY item_id;
+ORDER BY id;
 ```
+---
+
+* 🛠 Создание Materialized View, связанного с таблицей expensive_log
 ```sql
 CREATE MATERIALIZED VIEW log_mv TO expensive_log AS
-SELECT item_id AS id, name, price FROM menu WHERE price > 1000;
+SELECT item_id AS id, name, price
+FROM menu
+WHERE price > 1000;
 ```
+---
+⏱ Это создаёт автоматическую подписку на INSERT в menu — при выполнении условий (цена > 1000) запись попадёт в expensive_log.
 
-_📊 Проверка автоматической вставки:_
+---
+* 🧪 Проверка. Вставим новое блюдо с высокой ценой
 ```sql
-INSERT INTO menu VALUES (4, 'Рибай', 'Горячее', 1800, 1);
+INSERT INTO menu VALUES (5, 'Томагавк', 1900, 850, 'Премиум стейк');
 ```
+---
+([см.скриншот17](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_7_1.png))
+* 🔍 Смотрим, что изменилось в expensive_log
+
 ```sql
 SELECT * FROM expensive_log;
 ```
-_📊 Контроль через:_
+💡 Ожидается, что туда попадёт новое блюдо Томагавк ([см. скриншот18](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_7_2.png)).
+
+---
+
+* 🧹 Удаление MV и повторная вставка (проверка поведения)
+
+
 ```sql
-SELECT * FROM system.query_log WHERE query ILIKE '%INSERT%' AND table = 'expensive_log';
+DROP TABLE log_mv;
+
+INSERT INTO menu VALUES (6, 'Фуа-гра', 2200, 400, 'Деликатес');
+```
+([см. скриншот19](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_7_3.png))
+---
+Проверка:
+```sql
+SELECT * FROM expensive_log;
+```
+([см. скриншот20](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_7_5.png))
+⚠️ Новая запись не попадёт, потому что MV больше не существует.
+
+---
+* 🧬 Создание автономной MV (не через TO)
+```sql
+CREATE MATERIALIZED VIEW mv_expensive ENGINE = MergeTree()
+ORDER BY id
+AS
+SELECT item_id AS id, name, price FROM menu WHERE price > 1000;
+```
+([см. скриншот21](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_7_4.png))
+
+---
+Проверка:
+```sql
+SELECT * FROM mv_expensive;
+```
+---
+
+* 🩺 Мониторинг через system.query_log и system.parts
+```sql
+SELECT query, type, event_time FROM system.query_log
+WHERE query ILIKE '%menu%' AND event_time > now() - INTERVAL 10 MINUTE;
+```
+```sql
+SELECT table, partition, rows, bytes_on_disk FROM system.parts
+WHERE table IN ('menu', 'expensive_log', 'mv_expensive');
 ```
 ---
 ### 🧩 Шаг 8. Работа с партициями
