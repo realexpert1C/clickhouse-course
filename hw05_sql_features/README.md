@@ -133,7 +133,7 @@ _📊 Сравнение по system.tables:_
 ```sql
 SELECT name, total_rows, total_bytes FROM system.tables WHERE name IN ('numbers', 'numbers_copy');
 ```
-(см. [скриншот13](images/step5_6_1.png), [скриншот14](images/step5_6_2.png), [скриншот15](images/step5_6_3.png))
+(см. [скриншот13](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_6_1.png), [скриншот14]([images/step5_6_2.png](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_6_2.png)), [скриншот15]([images/step5_6_3.png](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_6_3.png)))
 _📌 Вывод: структура и объем скопированы._
 
 --- 
