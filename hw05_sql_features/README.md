@@ -140,17 +140,17 @@ _📌 Вывод: структура и объем скопированы._
 
 Создаём лог по дорогим блюдам:
 ```sql
-CREATE TABLE expensive_log
+CREATE TABLE expensive_menu_log
 (
-    id UInt32,
+    item_id UInt32,
     name String,
-    price Float32
+    price Decimal(8, 2)
 ) ENGINE = MergeTree
-ORDER BY id;
+ORDER BY item_id;
 ```
 ```sql
 CREATE MATERIALIZED VIEW log_mv TO expensive_log AS
-SELECT id, name, price FROM menu WHERE price > 1000;
+SELECT item_id AS id, name, price FROM menu WHERE price > 1000;
 ```
 
 _📊 Проверка автоматической вставки:_
