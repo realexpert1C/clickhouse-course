@@ -118,7 +118,9 @@ _📌 Вывод: структура таблицы успешно измене�
 ```sql
 SELECT * FROM system.numbers LIMIT 1000;
 ```
+
 [скриншот13](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_5_1.png)
+
 --- 
 ### 🧬 Шаг 6. Материализация таблицы
 
