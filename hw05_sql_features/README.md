@@ -118,10 +118,7 @@ _📌 Вывод: структура таблицы успешно измене�
 ```sql
 SELECT * FROM system.numbers LIMIT 1000;
 ```
-_📊 Проверка:_
-```sql
-SELECT name, total_rows, total_bytes FROM system.tables WHERE name = 'numbers';
-```
+скриншот13
 --- 
 ### 🧬 Шаг 6. Материализация таблицы
 
@@ -133,7 +130,7 @@ _📊 Сравнение по system.tables:_
 ```sql
 SELECT name, total_rows, total_bytes FROM system.tables WHERE name IN ('numbers', 'numbers_copy');
 ```
-(см. [скриншот13](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_6_1.png), [скриншот14]([images/step5_6_2.png](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_6_2.png)), [скриншот15]([images/step5_6_3.png](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_6_3.png)))
+(см. [скриншот14](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_6_1.png), [скриншот15]([images/step5_6_2.png](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_6_2.png)), [скриншот16]([images/step5_6_3.png](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_6_3.png)))
 _📌 Вывод: структура и объем скопированы._
 
 --- 
