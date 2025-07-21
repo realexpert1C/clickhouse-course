@@ -187,6 +187,7 @@ DROP TABLE log_mv;
 INSERT INTO menu VALUES (6, 'Фуа-гра', 2200, 400, 'Деликатес');
 ```
 ([см. скриншот19](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_7_3.png))
+
 ---
 Проверка:
 ```sql
