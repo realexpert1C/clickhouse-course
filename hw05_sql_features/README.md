@@ -135,7 +135,7 @@ SETTINGS
 ```
 _📊 Сравнение по system.tables:_
 ```sql
-SELECT name, total_rows, total_bytes FROM system.tables WHERE name IN ('numbers', 'numbers_copy');
+SELECT name, total_rows, total_bytes FROM system.tables WHERE name IN ('uk_price_paid', 'uk_price_paid_copy');
 ```
 (см. [скриншот14](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_6_1.png), [скриншот15](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_6_2.png), [скриншот16](https://github.com/realexpert1C/clickhouse-course/blob/main/images/step5_6_3.png))
 _📌 Вывод: структура и объем скопированы._
