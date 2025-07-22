@@ -125,8 +125,13 @@ SELECT * FROM system.numbers LIMIT 1000;
 ### 🧬 Шаг 6. Материализация таблицы
 
 ```sql
-CREATE TABLE numbers_copy ENGINE = MergeTree ORDER BY number AS
-SELECT * FROM system.numbers LIMIT 1000;
+CREATE TABLE uk_price_paid_copy ENGINE = MergeTree ORDER BY (postcode1, postcode2, addr1, addr2) AS
+SELECT * FROM uk_price_paid
+SETTINGS
+    max_bytes_before_external_group_by = 4000000000,
+    max_bytes_before_external_sort = 4000000000, 
+    max_threads = 8,
+    max_memory_usage = 8000000000;
 ```
 _📊 Сравнение по system.tables:_
 ```sql
