@@ -12,7 +12,7 @@ pip3 install clickhouse-driver numpy pandas
 
 __Пояснения__:
 
-- __Что сделал__: Установил Python и необходимые библиотеки для интеграции с ClickHouse.
+- __Что сделал__: Установил внутри контейнера с Clickhouse Python и необходимые библиотеки для интеграции с ClickHouse.
 
 - __Зачем__: Без Python-окружения EUDF работать не будут. Библиотека clickhouse-driver обеспечивает связь между ClickHouse и Python-скриптами.
 
@@ -24,7 +24,7 @@ __Пояснения__:
 
 ### ⚙️ 2. Конфигурация ClickHouse
 ```xml
-<!-- /etc/clickhouse-server/config.xml -->
+<!-- /etc/clickhouse-server/user_functions.xml -->
 <clickhouse>
     <user_defined_executable_functions_config>
         <allow_functions>true</allow_functions>
@@ -34,7 +34,7 @@ __Пояснения__:
 ```
 
 ```bash
-# Создание каталога для скриптов
+# Создание каталога для скриптов и смена владельца
 sudo mkdir -p /var/lib/clickhouse/udf
 sudo chown clickhouse:clickhouse /var/lib/clickhouse/udf
 ```
