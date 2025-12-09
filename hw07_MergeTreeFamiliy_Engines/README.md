@@ -184,6 +184,8 @@ INSERT INTO tbl1 VALUES (4324182021466249494, 5,146, -1,1),
 
 ![финал](https://github.com/realexpert1C/clickhouse-course/blob/ed8ed66f26acefd74cda2870dbcf1037f6b4156b/images/hw07_Sel_FINAL.png)
 
+и один парт соответсвенно:
+![одинпарт](https://github.com/realexpert1C/clickhouse-course/blob/e97482153bc358c3b0ba189bb488e75ced203265/images/hw07_final_parts.png)
 ⸻
 
 🧠 Вывод: порядок INSERT напрямую влияет на поведение CollapsingMergeTree
