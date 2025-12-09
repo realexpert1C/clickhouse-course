@@ -33,6 +33,9 @@ SELECT * FROM tbl1 FINAL;
 Пояснение:
 Выбран движок `CollapsingMergeTree`, так как используется колонка Sign для дедупликации данных по противоположным знакам.
 
+__Результат выполнения вышеуказанных запросов на развернутом в предыдущих этапах сервере Clickhouse:__
+
+![SELECT * FROM tvl1;](https://github.com/realexpert1C/clickhouse-course/blob/b60806ecca99749f6648650b67772249d4c686f6/images/hw07_VarA_sel.png)
 <!-- Вставить скриншот/результат SELECT * FROM tbl1 -->
 
 
