@@ -36,11 +36,11 @@ SELECT * FROM tbl1 FINAL;
 __Результат выполнения вышеуказанных запросов на развернутом в предыдущих этапах сервере Clickhouse:__
 
 1. Результат SELECT * FROM tbl1;
-![SELECT * FROM tvl1;](https://github.com/realexpert1C/clickhouse-course/blob/b60806ecca99749f6648650b67772249d4c686f6/images/hw07_VarA_sel.png)
+![SELECT * FROM tvl1;](https://github.com/realexpert1C/clickhouse-course/blob/823afe56e6b23d5f54bd9ce8576e704f9b89bf7c/images/hw07_VarA_sel.png)
 
 
 2. Результат SELECT * FROM tbl1 FINAL;
-![SELECT * FROM tvl1 FINAL;](https://github.com/realexpert1C/clickhouse-course/blob/ed8ed66f26acefd74cda2870dbcf1037f6b4156b/images/hw07_Sel_FINAL.png)
+![SELECT * FROM tvl1 FINAL;](https://github.com/realexpert1C/clickhouse-course/blob/823afe56e6b23d5f54bd9ce8576e704f9b89bf7c/images/hw07_Sel_FINAL.png)
 
 #### Сравнение
 Видим, что результат второго запроса совпал с указанным в условиях ДЗ, а первый нет. В условиях домашнего задания SELECT * FROM tbl1; показал таблицу из трех строк, а здесь две. 
@@ -135,7 +135,7 @@ UserID	PV	Dur	Sign	Version
 Это ключевое отличие от варианта Б.
 
 В подтвеждение посмотрим количество партов в этом варианте:
-![Количество партов А](https://github.com/realexpert1C/clickhouse-course/blob/ed8ed66f26acefd74cda2870dbcf1037f6b4156b/images/hw07_VarA_parts.png)
+![Количество партов А](https://github.com/realexpert1C/clickhouse-course/blob/823afe56e6b23d5f54bd9ce8576e704f9b89bf7c/images/hw07_VarA_parts.png)
 
 ⸻
 
@@ -157,7 +157,7 @@ INSERT INTO tbl1 VALUES (4324182021466249494, 6,185, 1,2);
 
 Результат:
 
-![Селект Вариант Б](https://github.com/realexpert1C/clickhouse-course/blob/ed8ed66f26acefd74cda2870dbcf1037f6b4156b/images/hw07_VarB_sel.png)
+![Селект Вариант Б](https://github.com/realexpert1C/clickhouse-course/blob/823afe56e6b23d5f54bd9ce8576e704f9b89bf7c/images/hw07_VarB_sel.png)
 
 SELECT * показывает 3 строки (как в условиях ДЗ)
 
@@ -169,7 +169,7 @@ UserID	PageViews	Duration	Sign	Version
 FINAL “склеивает блоки” логически → применяет коллапсацию.
 
 Посмотрим количество партов в варианте Б:
-![Количество партов Б](https://github.com/realexpert1C/clickhouse-course/blob/ed8ed66f26acefd74cda2870dbcf1037f6b4156b/images/hw07_VarB_parts.png)
+![Количество партов Б](https://github.com/realexpert1C/clickhouse-course/blob/823afe56e6b23d5f54bd9ce8576e704f9b89bf7c/images/hw07_VarB_parts.png)
 
 ⸻
 В дополнение отмечу, что если осуществлять весь INSERT указанных в задаче данных, то нужные строки сколлапсирутся, если можно так сказать внутри одного блока "на лету".
@@ -182,10 +182,10 @@ INSERT INTO tbl1 VALUES (4324182021466249494, 5,146, -1,1),
 
 мы в SELECT * FROM tbl1; увидим одну строку, такую же как и в SELECT * FROM tbl1 FINAL;
 
-![финал](https://github.com/realexpert1C/clickhouse-course/blob/ed8ed66f26acefd74cda2870dbcf1037f6b4156b/images/hw07_Sel_FINAL.png)
+![финал](https://github.com/realexpert1C/clickhouse-course/blob/823afe56e6b23d5f54bd9ce8576e704f9b89bf7c/images/hw07_Sel_FINAL.png)
 
 и один парт соответсвенно:
-![одинпарт](https://github.com/realexpert1C/clickhouse-course/blob/e97482153bc358c3b0ba189bb488e75ced203265/images/hw07_final_parts.png)
+![одинпарт](https://github.com/realexpert1C/clickhouse-course/blob/823afe56e6b23d5f54bd9ce8576e704f9b89bf7c/images/hw07_final_parts.png)
 ⸻
 
 🧠 Вывод: порядок INSERT напрямую влияет на поведение CollapsingMergeTree
