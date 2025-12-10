@@ -156,7 +156,7 @@ SELECT * FROM tbl2;
 
 Результат выполнения запроса ```SELECT * FROM tbl2;```
 
-![Result SummingMerge]()<!-- Вставить скриншот  -->
+![Result SummingMerge](https://github.com/realexpert1C/clickhouse-course/blob/1d3311d8181fbda10fe6b70a0d66e5f6759c0d79/images/hw07_task2.png)
 
 И он совпадает с представленным результатом в условяих ДЗ.
 
