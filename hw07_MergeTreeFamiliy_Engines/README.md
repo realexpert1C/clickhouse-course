@@ -19,7 +19,7 @@ CREATE TABLE tbl1
     Sign Int8,
     Version UInt8
 )
-ENGINE = CollapsingMergeTree(Sign)
+ENGINE = ENGINE = VersionedCollapsingMergeTree(Sign, Version)
 ORDER BY UserID;
 
 INSERT INTO tbl1 VALUES (4324182021466249494, 5, 146, -1, 1);
@@ -31,7 +31,8 @@ SELECT * FROM tbl1 FINAL;
 ```
 
 Пояснение:
-Выбран движок __`CollapsingMergeTree`__, так как используется колонка Sign для дедупликации данных по противоположным знакам.
+
+Выбран движок __`VersionedCollapsingMergeTree`__, который объединяет логику Replacing и Collapsing.
 
 __Результат выполнения вышеуказанных запросов на развернутом в предыдущих этапах сервере Clickhouse:__
 
