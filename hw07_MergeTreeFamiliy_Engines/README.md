@@ -335,22 +335,19 @@ SELECT * FROM tbl6 FINAL;
 ```
 
 1. Результат выполнения `SELECT * FROM tbl6;`
-![SELECT * FROM tvl6;]()
+![SELECT * FROM tvl6;](https://github.com/realexpert1C/clickhouse-course/blob/fa50c3f79b2033f86e3ac2b79693eec201046f36/images/hw07_tbl_sel.png)
 
 
-1. Результат выполнения `SELECT * FROM tbl6 FINAL;`
-![SELECT * FROM tvl6 FINAL;]()
+2. Результат выполнения `SELECT * FROM tbl6 FINAL;`
+![SELECT * FROM tvl6 FINAL;](https://github.com/realexpert1C/clickhouse-course/blob/fa50c3f79b2033f86e3ac2b79693eec201046f36/images/hw07_tbl6_sel_fin.png)
 
 Пояснение:
 Использован __`CollapsingMergeTree(sign)`__ — реализует логику отмены/удаления по знаку. После FINAL остаются только строки без пары противоположного знака. Результат выполнения запросов совпадает с выводами, указанными в условиях ДЗ.
 
-
-
-
-
 ---
 
 ##### Проблемы и решения
+
 	•	В случае с ReplacingMergeTree без указания колонки версии — порядок замены не гарантирован.
 	•	Для CollapsingMergeTree важно учитывать, что FINAL-select затратно по ресурсам.
 	•	Для AggregatingMergeTree важно использовать AggregateFunction-типы данных и правильно применять uniqState, uniqMerge.
@@ -360,7 +357,7 @@ SELECT * FROM tbl6 FINAL;
 ##### Источники
 
 - [ClickHouse MergeTree Engines](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/)
-- [Tutorial]()￼
-- [AliCloud Engine Guide]()￼
+- [Tutorial](https://dev.to/hoptical/clickhouse-basic-tutorial-table-engines-30i1)￼
+- [AliCloud Engine Guide](https://www.alibabacloud.com/blog/selecting-a-clickhouse-table-engine_597726)￼
 
 ---
