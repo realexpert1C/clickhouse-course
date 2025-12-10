@@ -158,7 +158,7 @@ SELECT * FROM tbl2;
 
 ![Result SummingMerge](https://github.com/realexpert1C/clickhouse-course/blob/1d3311d8181fbda10fe6b70a0d66e5f6759c0d79/images/hw07_task2.png)
 
-И он совпадает с представленным результатом в условяих ДЗ.
+И он совпадает с представленным результатом в условиях ДЗ.
 
 ---
 
@@ -189,17 +189,17 @@ SELECT * FROM tbl3 FINAL WHERE id=23;
 Применяя код, получаем следующие выводы:
 
 Результат выполнения запроса `SELECT * FROM tbl3 WHERE id=23;`:
-![]()
+![result select](https://github.com/realexpert1C/clickhouse-course/blob/946e4af965e6c624a41c96b7d45c41213a64e4f2/images/hw07_task3.png)
 
 
 Результат выполнения запроса `SELECT * FROM tbl3 FINAL WHERE id=23;`:
-![]()
+![result select final](https://github.com/realexpert1C/clickhouse-course/blob/946e4af965e6c624a41c96b7d45c41213a64e4f2/images/hw07_task3_fin.png)
 
 ✅ 1. Как работает ReplacingMergeTree() без параметров
 
 Когда движок объявлен так:
 
-ENGINE = ReplacingMergeTree()
+`ENGINE = ReplacingMergeTree()`
 
 — то есть без указания версии,
 то ClickHouse использует “последнюю физически вставленную строку”
@@ -221,18 +221,18 @@ PRIMARY KEY (id)
 ORDER BY (id, status)
 
 Значит:
-	•	уникальность записи определяется только id
-	•	если есть несколько строк с одинаковым id → они кандидаты на замену при FINAL
-	•	поля status, price, comment никак не участвуют в выборе победителя
+* уникальность записи определяется только id
+* если есть несколько строк с одинаковым id → они кандидаты на замену при FINAL
+* поля status, price, comment никак не участвуют в выборе победителя
 
 ---
 
 ❗ Почему победила строка с price = 2000 ?
 
 Потому что:
-	•	Оба INSERT содержат одну и ту же пару ключевых значений: id = 23.
-	•	Используется ReplacingMergeTree() без версионирования.
-	•	Движок выбирает последнюю вставленную строку.
+* Оба INSERT содержат одну и ту же пару ключевых значений: id = 23.
+* Используется ReplacingMergeTree() без версионирования.
+* Движок выбирает последнюю вставленную строку.
 
 Порядок вставки был такой:
 
@@ -245,13 +245,14 @@ ORDER BY (id, status)
 (23, 'success', '2000', 'Cancelled')
 
 Следовательно:
-	•	первая строка — устаревшая
-	•	вторая — победитель
+- первая строка — устаревшая
+- вторая — победитель
 
 ---
 
 #### Задание 4: Таблица tbl4
 
+```sql
 CREATE TABLE tbl4
 (
     CounterID UInt8,
@@ -264,11 +265,11 @@ ORDER BY (CounterID, StartDate);
 
 INSERT INTO tbl4 VALUES(0, '2019-11-11', 1);
 INSERT INTO tbl4 VALUES(1, '2019-11-12', 1);
+```
 
 Пояснение:
-Обычный MergeTree используется, так как агрегирования и дедупликации не требуется.
+ Используется обычный __`MergeTree`__, так как агрегирования и дедупликации не требуется.
 
-⸻
 
 #### Задание 5: Таблица tbl5 (с агрегатной функцией)
 
