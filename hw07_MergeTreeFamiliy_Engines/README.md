@@ -36,11 +36,11 @@ SELECT * FROM tbl1 FINAL;
 
 __Результат выполнения вышеуказанных запросов на развернутом в предыдущих этапах сервере Clickhouse:__
 
-1. Результат `SELECT * FROM tbl1;`
+1. Результат выполнения `SELECT * FROM tbl1;`
 ![SELECT * FROM tvl1;](https://github.com/realexpert1C/clickhouse-course/blob/49421520179ee1d15c13da04ef7a01638d40d2e3/images/hw07_task1_r.png)
 
 
-2. Результат `SELECT * FROM tbl1 FINAL;`
+2. Результат выполнения `SELECT * FROM tbl1 FINAL;`
 ![SELECT * FROM tvl1 FINAL;](https://github.com/realexpert1C/clickhouse-course/blob/823afe56e6b23d5f54bd9ce8576e704f9b89bf7c/images/hw07_Sel_FINAL.png)
 
 ---
@@ -254,7 +254,7 @@ INSERT INTO tbl4 VALUES(1, '2019-11-12', 1);
 ```
 
 Результат выполнения `SELECT * FROM tbl4`:
-![tbl4]()
+![tbl4](https://github.com/realexpert1C/clickhouse-course/blob/13194169e793f71cbbdfc16e5e98291bce109075/images/hw07_tbl4_sel.png)
 
 Пояснение:
  Используется обычный __`MergeTree`__, так как агрегирования и дедупликации не требуется.
@@ -300,7 +300,7 @@ GROUP BY CounterID, StartDate;
 ```
 
 Результат выполнения `SELECT uniqMerge(UserID) AS state FROM tbl5 GROUP BY CounterID, StartDate;`:
-![tbl5]()
+![tbl5](https://github.com/realexpert1C/clickhouse-course/blob/13194169e793f71cbbdfc16e5e98291bce109075/images/hw07_tbl5.png)
 
 Это классический паттерн AggregatingMergeTree:
 в таблицу кладём AggregateFunction-состояния, на чтении – …Merge() для их склейки.
@@ -314,6 +314,7 @@ GROUP BY CounterID, StartDate;
 
 #### Задание 6: Таблица tbl6 (дедупликация через знак)
 
+```sql
 CREATE TABLE tbl6
 (
     id Int32,
@@ -331,26 +332,35 @@ INSERT INTO tbl6 VALUES (23, 'success', '1000', 'Confirmed', -1),
 
 SELECT * FROM tbl6;
 SELECT * FROM tbl6 FINAL;
+```
+
+1. Результат выполнения `SELECT * FROM tbl6;`
+![SELECT * FROM tvl6;]()
+
+
+1. Результат выполнения `SELECT * FROM tbl6 FINAL;`
+![SELECT * FROM tvl6 FINAL;]()
 
 Пояснение:
-Использован CollapsingMergeTree(sign) — реализует логику отмены/удаления по знаку. После FINAL остаются только строки без пары противоположного знака.
-
-<!-- Вставить скриншоты SELECT и SELECT FINAL -->
+Использован __`CollapsingMergeTree(sign)`__ — реализует логику отмены/удаления по знаку. После FINAL остаются только строки без пары противоположного знака. Результат выполнения запросов совпадает с выводами, указанными в условиях ДЗ.
 
 
 
-⸻
 
-Проблемы и решения
+
+---
+
+##### Проблемы и решения
 	•	В случае с ReplacingMergeTree без указания колонки версии — порядок замены не гарантирован.
 	•	Для CollapsingMergeTree важно учитывать, что FINAL-select затратно по ресурсам.
 	•	Для AggregatingMergeTree важно использовать AggregateFunction-типы данных и правильно применять uniqState, uniqMerge.
 
-⸻
+---
 
-Источники
-	•	[ClickHouse MergeTree Engines](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/)
-	•	Tutorial￼
-	•	AliCloud Engine Guide￼
+##### Источники
 
-⸻
+- [ClickHouse MergeTree Engines](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/)
+- [Tutorial]()￼
+- [AliCloud Engine Guide]()￼
+
+---
