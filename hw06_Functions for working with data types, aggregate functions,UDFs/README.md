@@ -43,7 +43,7 @@ FROM numbers(100);
 * `user_id` → 50 пользователей
 * `price` → от 5 до 500
 * `quantity` → от 1 до 10
-* transaction_date → последние 30 дней
+* `transaction_date` → последние 30 дней
 
 Проверяю реалистичность вставленных данных
 
@@ -56,7 +56,7 @@ SELECT
     max(quantity)   AS max_qty
 FROM transactions;
 ```
-Результат проверки реалистичности ![hw06_check_tabl]()
+Результат проверки реалистичности ![hw06_check_tabl](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_check_tabl.png)
 
 ---
 #### Задания
@@ -71,7 +71,7 @@ SELECT
 FROM transactions;
 ```
 
-Результат выполнения запроса ![hw06_task_1_1]()
+Результат выполнения запроса ![hw06_task_1_1](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task_1_1.png)
 
 1.2 Найдите средний доход с одной сделки
 
@@ -81,7 +81,7 @@ SELECT
 FROM transactions;
 ```
 
-Результат выполнения запроса ![hw06_task_1_2]()
+Результат выполнения запроса ![hw06_task_1_2](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task_1_2.png)
 
 1.3 Определите общее количество проданной продукции
 
@@ -90,7 +90,7 @@ SELECT sum(quantity) AS total_quantity
 FROM transactions; 
 ```
 
-Результат выполнения запроса ![hw06_task_1_3]()
+Результат выполнения запроса ![hw06_task_1_3](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task_1_3.png)
 
 
 1.4 Подсчитайте количество уникальных пользователей, совершивших покупку
@@ -123,7 +123,7 @@ SELECT uniqCombined(user_id) FROM transactions;
 |uniqCombined|~99.9%|быстрая|продакшен|
 
 
-Результат выполнения запроса ![hw06_task_1_4]()
+Результат выполнения запроса ![hw06_task_1_4](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task_1_4.png)
 
 ##### Пояснения к заданию
 
@@ -144,7 +144,7 @@ FROM transactions
 LIMIT 5;
 ```
 
-Результат выполнения запроса ![hw06_task_2_1]()
+Результат выполнения запроса ![hw06_task_2_1](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task_2_1.png)
 
 2.2 Извлеките год и месяц из `transaction_date`
 
@@ -158,7 +158,7 @@ FROM transactions
 LIMIT 5;
 ```
 
-Результат выполнения запроса ![hw06_task_2_2]()
+Результат выполнения запроса ![hw06_task_2_2](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task_2_2.png)
 
 
 2.3 Округлите `price`до ближайшего целого числа
@@ -171,7 +171,7 @@ FROM transactions
 LIMIT 5;
 ```
 
-Результат выполнения запроса ![hw06_task_2_3]()
+Результат выполнения запроса ![hw06_task_2_3](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task_2_3.png)
 
 2.4 Преобразуйте `transaction_id` в строку
 
@@ -183,7 +183,7 @@ FROM transactions
 LIMIT 5;
 ```
 
-Результат выполнения запроса ![hw06_task_2_4]()
+Результат выполнения запроса ![hw06_task_2_4](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task_2_4.png)
 
 
 И можно добавить, что все указанные в задании 2 преобразования можно сделать одним запросом
@@ -202,7 +202,7 @@ FROM transactions
 LIMIT 10;
 ```
 
-Результат выполнения запроса ![hw06_task_2]()
+Результат выполнения запроса ![hw06_task_2](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task_2.png)
 
 ##### Пояснения к заданию
 
@@ -222,7 +222,7 @@ AS (quantity, price)
 -> round(quantity * price, 2);
 ```
 
-Результат выполнения запроса ![hw06_task_3_1]()
+Результат выполнения запроса ![hw06_task_3_1](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task_3_1.png)
 
 Результат показывает, что функция создалась успешно и может быть вызвана
 в запросе по имени total_price(quantity, price) с указанием аргументов в скобках
@@ -239,7 +239,7 @@ FROM transactions
 LIMIT 10;
 ```
 
-Результат выполнения запроса ![hw06_task_3_2](), скорость выполнения запроса 0.002сек
+Результат выполнения запроса ![hw06_task_3_2](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task_3_2.png), скорость выполнения запроса 0.002сек
 
 3.3 Создайте UDF для классификации транзакций на «высокоценные» и «малоценные»
 на основе порогового значения (например, 100)
@@ -256,7 +256,7 @@ AS (total)
 -> if(total >= 100, 'High Value', 'Low Value');
 ```
 
-Результат выполнения запроса ![hw06_task_3_3](), скорость выполнения запроса 0.002сек
+Результат выполнения запроса ![hw06_task_3_3](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task_3_3.png), скорость выполнения запроса 0.002сек
 
 Ok в выводе означает, что функция успешно создана
 
@@ -273,7 +273,7 @@ FROM transactions
 LIMIT 10;
 ```
 
-Результат выполнения запроса ![hw06_task_3_4]()
+Результат выполнения запроса ![hw06_task3_4](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_task3_4.png)
 
 ##### Пояснения к заданию
 
@@ -343,14 +343,15 @@ pip3 install clickhouse-driver
 
 Создаю каталог, где будут лежать Python-скрипты:
 
+```bash
 sudo mkdir -p /var/lib/clickhouse/user_scripts
 sudo chown -R clickhouse:clickhouse /var/lib/clickhouse/user_scripts
-
+```
 Или на хосте в директории clickhouse с монтированием их на серевер через docker-compose.yml
-
+```bash
 sudo mkdir -p ./common/user_scripts
 sudo chown -R 101:101 ./common/user_scripts
-
+```
 ```yml
 volumes:
 - /home/admin/infra/clickhouse/user_scripts:/etc/clickhouse/user_scripts:ro
@@ -396,7 +397,7 @@ RETURNS Float32
 EXECUTE ON HOST;
 ```
 
-Результат выполнения запроса ![hw06_var2_fail1]()
+Результат выполнения запроса ![hw06_var2_fail1](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_var2_fail1.png)
 
 __Пояснение__: Что произошло и что означает полученная ошибка?
 
@@ -586,7 +587,7 @@ USING rn
 ORDER BY rn;
 ```
 
-Результат выполнения запроса ![hw06_var2_sel1](), скорость выполнения запроса - 0.043 сек
+Результат выполнения запроса ![hw06_var2_sel1](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_var2_sel1.png), скорость выполнения запроса - 0.043 сек
 
 3.2 Создаю более сложную Python EUDF: классификация транзакций. Python-скрипт `transaction_category.py`:
 
@@ -663,7 +664,7 @@ USING rn
 ORDER BY rn;
 ```
 
-Результат выполнения запроса ![hw06_var2_sel2](), скорость выполнения запроса - 0.052 сек
+Результат выполнения запроса ![hw06_var2_sel2](https://github.com/realexpert1C/clickhouse-course/blob/5267f7be7a267075186ac8fcdf6866c36b50feae/images/hw06_var2_sel2.png), скорость выполнения запроса - 0.052 сек
 
 ___Пояснения__
 Как видим из выполненных заданий, в Clickhouse возможно выполнение UDF как заданных пользователем в SQL запросе, так и исполняемых скриптов, которые создаются в отдельных файлах на других языках программирования. Однако, следует учитывать целесообразность такого применения. На примере учебных заданий видим, что EDUF отработали корректно, но скорость выполнения на порядок превысила аналогичные запросы в Варианте 1. 
