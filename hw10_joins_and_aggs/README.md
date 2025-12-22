@@ -98,7 +98,7 @@ FROM s3(
 ```sql
 SHOW TABLES FROM imdb;
 ```
-Результат выполнения запроса ![hw10_check1]()
+Результат выполнения запроса ![hw10_check1](https://github.com/realexpert1C/clickhouse-course/blob/1c8c10149292b8c4b2ed44bf4578971fbc6c6ce5/images/hw10_check1.png)
 
 🔎 Проверяю количество строк:
 
@@ -112,7 +112,7 @@ SELECT 'movies', count() FROM imdb.movies
 UNION ALL
 SELECT 'roles', count() FROM imdb.roles;
 ```
-Результат выполнения запроса ![hw10_check2]()
+Результат выполнения запроса ![hw10_check2](https://github.com/realexpert1C/clickhouse-course/blob/1c8c10149292b8c4b2ed44bf4578971fbc6c6ce5/images/hw10_check2.png)
 
 ---
 
@@ -133,7 +133,7 @@ LIMIT 10;
 ```
 В запросе указал __JOIN__, потому что по умолчанию в ClickHouse — это __INNER JOIN__.
 
-Результат выполнения запроса ![hw10_select1]()
+Результат выполнения запроса ![hw10_select1](https://github.com/realexpert1C/clickhouse-course/blob/1c8c10149292b8c4b2ed44bf4578971fbc6c6ce5/images/hw10_select1.png)
 
 ---
 
@@ -150,7 +150,7 @@ WHERE g.genre IS NULL OR g.genre = ''
 LIMIT 10;
 ```
 
-Результат выполнения запроса ![hw10_select2]()
+Результат выполнения запроса ![hw10_select2](https://github.com/realexpert1C/clickhouse-course/blob/1c8c10149292b8c4b2ed44bf4578971fbc6c6ce5/images/hw10_select2.png)
 
 ---
 
@@ -164,7 +164,7 @@ CROSS JOIN imdb.genres g
 LIMIT 100;
 ```
 
-Результат выполнения запроса ![hw10_select3]()
+Результат выполнения запроса ![hw10_select3](https://github.com/realexpert1C/clickhouse-course/blob/1c8c10149292b8c4b2ed44bf4578971fbc6c6ce5/images/hw10_select3.png)
 
 ---
 
@@ -181,7 +181,7 @@ WHERE g.genre IS NOT NULL AND g.genre != ''
 LIMIT 10;
 ```
 
-Результат выполнения запроса ![hw10_select4]()
+Результат выполнения запроса ![hw10_select4](https://github.com/realexpert1C/clickhouse-course/blob/1c8c10149292b8c4b2ed44bf4578971fbc6c6ce5/images/hw10_select4.png)
 
 ---
 
@@ -201,7 +201,7 @@ WHERE m.year = 2002
 LIMIT 10;
 ```
 
-Результат выполнения запроса ![hw10_select5]()
+Результат выполнения запроса ![hw10_select5](https://github.com/realexpert1C/clickhouse-course/blob/1c8c10149292b8c4b2ed44bf4578971fbc6c6ce5/images/hw10_select5.png)
 
 ---
 
@@ -214,7 +214,7 @@ ANTI LEFT JOIN imdb.genres g  ON m.id = g.movie_id
 LIMIT 10;
 ```
 
-Результат выполнения запроса ![hw10_select6]()
+Результат выполнения запроса ![hw10_select6](https://github.com/realexpert1C/clickhouse-course/blob/1c8c10149292b8c4b2ed44bf4578971fbc6c6ce5/images/hw10_select6.png)
 
 ---
 
