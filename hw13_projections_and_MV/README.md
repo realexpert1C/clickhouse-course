@@ -140,7 +140,7 @@ FROM sales
 GROUP BY product_id;
 ```
 
-Результат выполнения запроса ![hw13_sel1]()
+Результат выполнения запроса ![hw13_sel1](https://github.com/realexpert1C/clickhouse-course/blob/5a4036be2c4f9f918d4463126113cc8e2cac5051/images/hw13_sel1.png)
 
 
 🔹 Запрос к проекции
@@ -160,7 +160,7 @@ GROUP BY product_id;
 
 👉 ClickHouse сам выберет `sales_projection
 
-Результат выполнения запроса ![hw13_sel2]()
+Результат выполнения запроса ![hw13_sel2](https://github.com/realexpert1C/clickhouse-course/blob/5a4036be2c4f9f918d4463126113cc8e2cac5051/images/hw13_sel2.png)
 
 ---
 
@@ -178,7 +178,7 @@ FROM sales_mv;
 `TRUNCATE sales;` и затем повторяю `INSERT INTO sales VALUES ...` из п.2
 
 
-Результат выполнения запроса ![hw13_sel3]()
+Результат выполнения запроса ![hw13_sel3](https://github.com/realexpert1C/clickhouse-course/blob/5a4036be2c4f9f918d4463126113cc8e2cac5051/images/hw13_sel3.png)
 
 ---
 
