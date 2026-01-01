@@ -120,7 +120,7 @@ docker exec -it ch1 clickhouse-client
 	•	отображение версии клиента и сервера
 
 📸 Результат - успешное подключение clickhouse-client
-![hw14_ch_client]()
+![hw14_ch_client](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_ch_client.PNG)
 
 ---
 
@@ -141,7 +141,7 @@ SELECT
 	•	uptime_seconds > 0
 
 📸 Результат запроса SELECT version(), uptime()
-![hw14_ch1_check1]()
+![hw14_ch1_check1](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_ch1_check1.PNG)
 
 ---
 
@@ -158,7 +158,7 @@ SELECT 1;
 	•	корректный ответ на простой запрос
 
 📸 Результат 
-![hw14_ch1_check2]()
+![hw14_ch1_check2](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_ch1_check2.PNG)
 
 ---
 
@@ -229,7 +229,7 @@ FROM url(
 ```
 
 Скриншоты создания таблицы и загрузки датасета:
-![hw14_create_tbl](), ![hw14_insert_tbl1](), ![hw14_insert_tbl2]()
+![hw14_create_tbl](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_create_tbl.PNG), ![hw14_insert_tbl1](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_insert_tbl1.PNG), ![hw14_insert_tbl2](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_insert_tbl2.PNG)
 
 ### Результат выполнения шага
 
@@ -337,7 +337,7 @@ Listening for Keeper (tcp): [::1]:9181
 ```
 
 Скриншот выполнения команд создания контейнера и проверки логов:
-![hw14_create_keeper]()
+![hw14_create_keeper](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_create_keeper.PNG)
 
 ---
 
@@ -364,7 +364,7 @@ FROM system.zookeeper_connection;
 * enabled_feature_flags не пустой
 
 Скриншот выполнения запроса:
-![hw14_check_keeper]()
+![hw14_check_keeper](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_check_keeper.png)
 
 Результат запроса показывает, что Keeper работает корректно.
 
@@ -407,7 +407,7 @@ SELECT
 ```
 
 Скриншот выполнения запроса:
-![hw14_check_repl1]()
+![hw14_check_repl1](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_check_repl1.PNG)
 
 ### 2.3 Конвертация таблицы `uk_price_paid` в реплицируемую
 
@@ -513,7 +513,7 @@ FROM system.replicas;
 ```
 
 Скриншоты выполнения запросов:
-[hw14_change_tbl1](), [hw14_change_tbl2](), [hw14_change_tbl3](), [hw14_change_tbl4]()
+[hw14_change_tbl1](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_change_tbl1.PNG), [hw14_change_tbl2](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_change_tbl2.PNG), [hw14_change_tbl3](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_change_tbl3.PNG), [hw14_change_tbl4](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_change_tbl4.PNG)
 
 ### Результат выполнения шага
 
@@ -685,7 +685,7 @@ FROM system.replicas;
 - replica_name: ch1, ch2, ch3
 
 📌 Скриншот выполнения запроса
-![hw14_check_repls]()
+![hw14_check_repls](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_check_repls.PNG)
 
 ### Результат выполнения шага
 
@@ -725,7 +725,7 @@ FROM remote('ch1,ch2,ch3',system.parts)
 FORMAT JSONEachRow
 " > parts.json
 ```
-[Ссылка на parts.json]()
+[Ссылка на parts.json](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/files/parts.json)
 
 ---
 
@@ -743,7 +743,7 @@ FROM system.replicas
 FORMAT JSONEachRow
 " > replicas.json
 ```
-[Ссылка на replicas.json]()
+[Ссылка на replicas.json](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/files/replicas.json)
 
 
 ### Результат выполнения шага
@@ -789,7 +789,7 @@ SHOW CREATE TABLE uk_price_paid;
 ```
 
 📸 Скриншот выполнения запросов
-![hw14_step5]()
+![hw14_step5](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_step5.png)
 
 ### Результат выполнения шага
 * выбрана колонка с типом `Date` в таблице,
