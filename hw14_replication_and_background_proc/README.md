@@ -229,7 +229,7 @@ FROM url(
 ```
 
 Скриншоты создания таблицы и загрузки датасета:
-![hw14_create_tbl](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_create_tbl.PNG), ![hw14_insert_tbl1](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_insert_tbl1.PNG), ![hw14_insert_tbl2](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_insert_tbl2.PNG)
+[hw14_create_tbl](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_create_tbl.PNG), [hw14_insert_tbl1](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_insert_tbl1.PNG), [hw14_insert_tbl2](https://github.com/realexpert1C/clickhouse-course/blob/d7cf08dfd89935b1b874fad83f8e296875ead635/images/hw14_insert_tbl2.PNG)
 
 ### Результат выполнения шага
 
