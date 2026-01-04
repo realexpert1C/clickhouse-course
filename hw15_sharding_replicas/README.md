@@ -175,7 +175,7 @@ SELECT getMacro('shard'), getMacro('replica');
 - Идеально для горизонтального масштабирования по данным
 - Используется Distributed-таблица, которая по шард-ключу (rand() или id) раскидывает данные по нодам
 - Таблицы MergeTree — без ReplicatedMergeTree
-- Важно: нужен SAMPLE BY, если используем max_parallel_replicas > 1 [см. слайд 43 Altinity]() ￼
+- Важно: нужен SAMPLE BY, если используем max_parallel_replicas > 1
 
 ---
 
@@ -189,5 +189,182 @@ SELECT getMacro('shard'), getMacro('replica');
 
 📌 Как на слайде «Sharded and Replicated» из презентации Altinity [стр. 10]() ￼
 
+
+**Примечание** Для реализации топологии 3 понадобилось создание четвертого экземпляра `clickhouse-server`.
+
 ---
 
+## ✅ Шаг 3 - Предоставьте xml-секцию в текстовом файле для проверки.
+
+В папке config.d каждой ноды создаю файл `remote_servers.xml`
+
+```xml
+<clickhouse>
+  <remote_servers>
+
+    <!-- Топология 1: replicated_cluster (1 шард, 4 реплики) -->
+    <replicated_cluster>
+      <shard>
+        <replica>
+          <host>ch1</host>
+          <port>9000</port>
+        </replica>
+        <replica>
+          <host>ch2</host>
+          <port>9000</port>
+        </replica>
+        <replica>
+          <host>ch3</host>
+          <port>9000</port>
+        </replica>
+        <replica>
+          <host>ch4</host>
+          <port>9000</port>
+        </replica>
+      </shard>
+    </replicated_cluster>
+
+    <!-- Топология 2: sharded_cluster (4 шарда, по 1 реплике) -->
+    <sharded_cluster>
+      <shard>
+        <replica>
+          <host>ch1</host>
+          <port>9000</port>
+        </replica>
+      </shard>
+      <shard>
+        <replica>
+          <host>ch2</host>
+          <port>9000</port>
+        </replica>
+      </shard>
+      <shard>
+        <replica>
+          <host>ch3</host>
+          <port>9000</port>
+        </replica>
+      </shard>
+      <shard>
+        <replica>
+          <host>ch4</host>
+          <port>9000</port>
+        </replica>
+      </shard>
+    </sharded_cluster>
+
+    <!-- Топология 3: main_cluster (2 шарда, по 2 реплики) -->
+    <main_cluster>
+      <shard>
+        <replica>
+          <host>ch1</host>
+          <port>9000</port>
+        </replica>
+        <replica>
+          <host>ch3</host>
+          <port>9000</port>
+        </replica>
+      </shard>
+      <shard>
+        <replica>
+          <host>ch2</host>
+          <port>9000</port>
+        </replica>
+        <replica>
+          <host>ch4</host>
+          <port>9000</port>
+        </replica>
+      </shard>
+    </main_cluster>
+
+  </remote_servers>
+</clickhouse>
+```
+
+и делаю рестарт контейнеров
+
+---
+
+
+## ✅ Шаг 4 - Создание Distributed-таблиц на каждой топологии
+
+Для теста используем системную таблицу system.one (1 строка, 1 колонка dummy типа UInt8).
+Выполняю запросы для создания Distributed таблиц для каждой топологии
+
+---
+
+🔸 Таблица для `replicated_cluster`
+
+```sql
+CREATE TABLE dist_replicated
+ENGINE = Distributed(replicated_cluster, system, one);
+```
+
+---
+
+🔸 Таблица для `sharded_cluster`
+
+```sql
+CREATE TABLE dist_sharded
+ENGINE = Distributed(sharded_cluster, system, one, rand());
+```
+
+⚠️ Важно: указан sharding_key = rand() — обязателен при нескольких шардах
+
+---
+
+🔸 Таблица для `main_cluster`
+
+```sql
+CREATE TABLE dist_main
+ENGINE = Distributed(main_cluster, system, one, rand());
+```
+
+---
+
+## ✅ Шаг 5 - Проверка Distributed-таблиц
+
+Выполняю следующие запросы
+
+```sql
+SELECT * FROM system.clusters WHERE cluster IN ('replicated_cluster', 'sharded_cluster', 'main_cluster');
+```
+
+Результат выполнения запроса:
+![hw15_check_distr]()
+
+---
+
+```sql
+SHOW CREATE TABLE dist_replicated;
+```
+Результат выполнения запроса:
+![hw15_show_repl]()
+
+---
+
+```sql
+SHOW CREATE TABLE dist_sharded;
+```
+Результат выполнения запроса:
+![hw15_show_shard]()
+
+---
+
+```sql
+SHOW CREATE TABLE dist_main;
+```
+Результат выполнения запроса:
+![hw15_show_main]()
+
+---
+
+## Выводы
+
+1. Созданы и проверены три разные топологии ClickHouse-кластера:
+	- Полная репликация (replicated_cluster)
+	- Полное шардирование без репликации (sharded_cluster)
+	- Комбинированная схема с 2 шардами по 2 реплики (main_cluster)
+2. Для каждой топологии:
+	- Настроены секции <remote_servers>
+	- Созданы Distributed-таблицы на основе system.one
+	- Выполнены тестовые запросы, подтверждающие правильность настройки
