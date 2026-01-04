@@ -12,14 +12,7 @@
 > 2. Опишите две или более топологий объединения экземпляров в шарды, указав фактор репликации и количество шардов.
 > 3. Предоставьте xml-секцию в текстовом файле для проверки.
 > 4. создать DISTRIBUTED-таблицу на каждую из топологий. Можно использовать системную таблицу system.one содержащую одну колонку dummy типа UInt8, в качестве локальной таблицы.
->    ```sql
->    SELECT getMacro('replica'), *
->    FROM remote('replica1,replica2,replica3', system.parts)
->    FORMAT JSONEachRow;
->
->    SELECT * FROM system.replicas
->    FORMAT JSONEachRow;
->    ```
+>  
 >или 5. предоставить вывод запроса SELECT *,hostName(),_shard_num from distributed-table для каждой distributed-таблицы, можно добавить group by и limit по вкусу если тестовых данных много.
 >   
 > или 5. предоставить SELECT * FROM system.clusters; SHOW CREATE TABLE для каждой Distributed-таблицы.
@@ -108,14 +101,22 @@ networks:
 
 📌 Макросы нужны для ReplicatedMergeTree и корректной привязки к Keeper.
 
-### 1.4 Настраиваю пароль default:
+### 1.4 Настраиваю пользователя default:
 
-Создаю users.d/default_password.xml:
+Создаю users.d/default_user.xml:
 ```xml
 <clickhouse>
   <users>
     <default>
       <password>default123</password>
+
+      <networks>
+        <ip>0.0.0.0/0</ip>
+        <ip>::/0</ip>
+      </networks>
+
+      <profile>default</profile>
+      <quota>default</quota>
     </default>
   </users>
 </clickhouse>
@@ -140,7 +141,7 @@ SELECT getMacro('shard'), getMacro('replica');
 ```
 
 Скриншот результата запроса
-![hw15_ch4_check]()
+![hw15_ch4_check](https://github.com/realexpert1C/clickhouse-course/blob/764536657496e148e24914a41725b2dd3fb7fc03/images/hw15_ch4_check.png)
 
 ## Шаг 2 - Опишите две или более топологий объединения экземпляров в шарды, указав фактор репликации и количество шардов
 
@@ -150,8 +151,8 @@ SELECT getMacro('shard'), getMacro('replica');
 
 |Название топологии|Кол-во шардов|Фактор репликации|Всего нод|Состав|Назначение|Ключ сэмплирования|
 |------------------|-------------|-----------------|---------|------|----------|------------------|
-|replicated_cluster|1|4|4|ch1, ch2, ch3, ch4|Full Replication|Нет (возможно, SAMPLE BY rand())|
-|sharded_cluster|4|1|4|ch1, ch2, ch3, ch4|Full Sharding (по хостам)|Обязателен, например: SAMPLE BY rand()|
+|replicated_cluster|1|4|4|Шард1: ch1, ch2, ch3, ch4|Full Replication|Нет (возможно, SAMPLE BY rand())|
+|sharded_cluster|4|1|4|Шард1: ch1, Шард2: ch2, Шард3: ch3, Шард4: ch4|Full Sharding (по хостам)|Обязателен, например: SAMPLE BY rand()|
 |main_cluster|2|2|4|Шард1: ch1, ch3; Шард2: ch2, ch4|Комбинированная схема|Рекомендуется, например: SAMPLE BY id|
 
 ---
@@ -166,7 +167,7 @@ SELECT getMacro('shard'), getMacro('replica');
 	 * масштабирования по чтению
 	 * Минусы: нет масштабирования на записи, всё дублируется
 
-📌 Как на слайде «All Replicated» из презентации Altinity [стр. 10]() ￼
+📌 Как на слайде «All Replicated» из презентации Altinity [стр. 10](https://github.com/realexpert1C/clickhouse-course/blob/764536657496e148e24914a41725b2dd3fb7fc03/images/hw15_altinity_slide10.png) ￼
 
 ---
 
@@ -187,7 +188,7 @@ SELECT getMacro('shard'), getMacro('replica');
 - Характерно для прод-окружений
 - Поддерживает max_parallel_replicas при наличии SAMPLE BY
 
-📌 Как на слайде «Sharded and Replicated» из презентации Altinity [стр. 10]() ￼
+📌 Как на слайде «Sharded and Replicated» из презентации Altinity [стр. 10](https://github.com/realexpert1C/clickhouse-course/blob/764536657496e148e24914a41725b2dd3fb7fc03/images/hw15_altinity_slide10.png) ￼
 
 
 **Примечание** Для реализации топологии 3 понадобилось создание четвертого экземпляра `clickhouse-server`.
@@ -330,7 +331,7 @@ SELECT * FROM system.clusters WHERE cluster IN ('replicated_cluster', 'sharded_c
 ```
 
 Результат выполнения запроса:
-![hw15_check_distr]()
+![hw15_check_distr](https://github.com/realexpert1C/clickhouse-course/blob/764536657496e148e24914a41725b2dd3fb7fc03/images/hw15_check_distr.png)
 
 ---
 
@@ -338,7 +339,7 @@ SELECT * FROM system.clusters WHERE cluster IN ('replicated_cluster', 'sharded_c
 SHOW CREATE TABLE dist_replicated;
 ```
 Результат выполнения запроса:
-![hw15_show_repl]()
+![hw15_show_repl](https://github.com/realexpert1C/clickhouse-course/blob/764536657496e148e24914a41725b2dd3fb7fc03/images/hw15_show_repl.png)
 
 ---
 
@@ -346,7 +347,7 @@ SHOW CREATE TABLE dist_replicated;
 SHOW CREATE TABLE dist_sharded;
 ```
 Результат выполнения запроса:
-![hw15_show_shard]()
+![hw15_show_shard](https://github.com/realexpert1C/clickhouse-course/blob/764536657496e148e24914a41725b2dd3fb7fc03/images/hw15_show_shard.png)
 
 ---
 
@@ -354,7 +355,7 @@ SHOW CREATE TABLE dist_sharded;
 SHOW CREATE TABLE dist_main;
 ```
 Результат выполнения запроса:
-![hw15_show_main]()
+![hw15_show_main](https://github.com/realexpert1C/clickhouse-course/blob/764536657496e148e24914a41725b2dd3fb7fc03/images/hw15_show_main.png)
 
 ---
 
