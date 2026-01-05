@@ -192,7 +192,7 @@ WHERE table = 'uk_price_paid_daily';
 ```
 
 Скриншот результата запроса
-![hw16_add_step2]()
+![hw16_add_step2](https://github.com/realexpert1C/clickhouse-course/blob/adfe2e4b3be1a4a49e54924190081db1c79dd9ce/images/hw16_add_step2.png)
 
 ---
 
@@ -211,7 +211,7 @@ WHERE table = 'uk_price_paid_daily'
 ```
 
 Скриншот результата запроса
-![hw16_add_step3]()
+![hw16_add_step3](https://github.com/realexpert1C/clickhouse-course/blob/adfe2e4b3be1a4a49e54924190081db1c79dd9ce/images/hw16_add_step3.png)
 
 ---
 
@@ -238,7 +238,7 @@ FROM system.detached_parts
 WHERE table = 'uk_price_paid_daily';
 ```
 Скриншот результата запроса
-![hw16_add_step5]()
+![hw16_add_step5](https://github.com/realexpert1C/clickhouse-course/blob/adfe2e4b3be1a4a49e54924190081db1c79dd9ce/images/hw16_add_step5.png)
 
 ---
 
@@ -275,7 +275,7 @@ GROUP BY date;
 ```
 
 Скриншот результата запроса
-![hw16_add_step6]()
+![hw16_add_step6](https://github.com/realexpert1C/clickhouse-course/blob/adfe2e4b3be1a4a49e54924190081db1c79dd9ce/images/hw16_add_step6.png)
 
 
 ---
@@ -319,7 +319,7 @@ GROUP BY partition, min_date, max_date;
 ```
 
 Скриншот результат запроса
-![hw16_add_step7]()
+![hw16_add_step7](https://github.com/realexpert1C/clickhouse-course/blob/adfe2e4b3be1a4a49e54924190081db1c79dd9ce/images/hw16_add_step7.png)
 
 ---
 
@@ -370,7 +370,7 @@ WHERE table = 'uk_price_paid_monthly_ttl';
 ```
 
 Скриншот результата запроса
-![hw16_add_step8]()
+![hw16_add_step8](https://github.com/realexpert1C/clickhouse-course/blob/adfe2e4b3be1a4a49e54924190081db1c79dd9ce/images/hw16_add_step8.png)
 
 ---
 
