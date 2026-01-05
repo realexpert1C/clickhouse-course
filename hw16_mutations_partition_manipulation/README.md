@@ -58,7 +58,7 @@ ORDER BY (user_id, activity_date);
 ```
 
 ✅ Скриншот: результат выполнения `SHOW CREATE TABLE user_activity;`.
-![hw16_create_tbl]()
+![hw16_create_tbl](https://github.com/realexpert1C/clickhouse-course/blob/a57fa07f7267814db03eaca47b265e12a33d9952/images/hw16_create_tbl.png)
 
 ---
 
@@ -75,7 +75,7 @@ INSERT INTO default.user_activity VALUES
 (3, 'purchase', '2025-11-16 09:00:00');
 ```
 ✅ Скриншот: результат запроса `SELECT * FROM user_activity ORDER BY activity_date;`.
-![hw16_insert_tbl]()
+![hw16_insert_tbl](https://github.com/realexpert1C/clickhouse-course/blob/a57fa07f7267814db03eaca47b265e12a33d9952/images/hw16_insert_tbl.png)
 
 ---
 
@@ -90,7 +90,7 @@ WHERE activity_type = 'login';
 ```
 
 ✅ Скриншот: `SELECT * FROM user_activity WHERE activity_type = 'signin';`.
-![hw16_alter_tbl]()
+![hw16_alter_tbl](https://github.com/realexpert1C/clickhouse-course/blob/a57fa07f7267814db03eaca47b265e12a33d9952/images/hw16_alter_tbl.png)
 
 ---
 
@@ -105,11 +105,22 @@ WHERE table = 'user_activity';
 ```
 
 ✅ Скриншот: результат запроса к `system.mutations`.
-![hw16_system_mutations]()
+![hw16_system_mutations](https://github.com/realexpert1C/clickhouse-course/blob/a57fa07f7267814db03eaca47b265e12a33d9952/images/hw16_system_mutations.png)
 
 ---
 
 ### Шаг 5 - Удаление партиции
+
+Проверяю список партиций до удаления:
+
+```sql
+SELECT partition, min_date, max_date, rows
+FROM system.parts
+WHERE table = 'user_activity' AND active;
+```
+
+✅ Скриншот: `system.parts` до удаления партиции 202511.
+![hw16_system_parts_before](https://github.com/realexpert1C/clickhouse-course/blob/a57fa07f7267814db03eaca47b265e12a33d9952/images/hw16_system_parts_before.png)
 
 Удаляю партицию за ноябрь 2025 (202511):
 
@@ -119,8 +130,8 @@ DROP PARTITION 202511;
 ```
 
 ✅ Скриншот: результаты `SELECT * FROM user_activity` до и после удаления партиции.
-![hw16_user_before_del_part]()
-![hw16_user_after_del_part]()
+![hw16_user_before_del_part](https://github.com/realexpert1C/clickhouse-course/blob/a57fa07f7267814db03eaca47b265e12a33d9952/images/hw16_user_before_del_part.png)
+![hw16_user_after_del_part](https://github.com/realexpert1C/clickhouse-course/blob/a57fa07f7267814db03eaca47b265e12a33d9952/images/hw16_user_after_del_part.png)
 
 ---
 
@@ -135,7 +146,7 @@ WHERE table = 'user_activity' AND active;
 ```
 
 ✅ Скриншот: подтверждение отсутствия партиции 202511.
-![hw16_system_parts]()
+![hw16_system_parts_after](https://github.com/realexpert1C/clickhouse-course/blob/a57fa07f7267814db03eaca47b265e12a33d9952/images/hw16_system_parts_after.png)
 
 ---
 
@@ -145,53 +156,7 @@ WHERE table = 'user_activity' AND active;
 
 #### 🔄 7.1. Исследование других типов мутаций
 
-В ClickHouse доступны два типа мутаций:
 
-📌 Обычные (heavy) мутации
-
-Используются по умолчанию. Перезаписывают всю партицию.
-
-```sql
-ALTER TABLE default.user_activity
-UPDATE activity_type = 'entry'
-WHERE user_id = 2;
-```
-
-Проверка статуса:
-
-```sql
-SELECT mutation_id, command, is_done
-FROM system.mutations
-WHERE table = 'user_activity';
-```
-
-⚡ Лёгкие мутации (lightweight DELETE/UPDATE) - ПОЛУЧИТЬ ССЫЛКИ НА ИСТОЧНИКИ И БОЛЕЕ ПОДРОБНЫЕ ПОЯСНЕНИЯ - ПРОСМОТРЕТЬ ЛЕКЦИЮ
-
-Быстрее, так как не требуют полного мёрджа. Требуют активации.
-
-Включение лёгких мутаций:
-
-```sql
-SET allow_experimental_lightweight_update = 1;
-SET alter_update_mode = 'lightweight';
-```
-
-Пример DELETE (lightweight):
-
-```sql
-DELETE FROM default.user_activity
-WHERE user_id = 3;
-```
-
-Пример UPDATE (lightweight):
-
-```sql
-ALTER TABLE default.user_activity
-UPDATE activity_type = 'logout'
-WHERE user_id = 1;
-```
-
-✅ Скриншот: результат запроса к system.mutations и SELECT *.
 
 ---
 
