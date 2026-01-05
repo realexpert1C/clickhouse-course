@@ -2,7 +2,7 @@
 
 ### 📄 Текст задания
 
-> Шардирование
+> 
 >
 > **Цель:**
 > - понять, как работают мутации данных в ClickHouse;
@@ -150,74 +150,235 @@ WHERE table = 'user_activity' AND active;
 
 ---
 
-### 7. Дополнительные задания по теме мутаций и работы с партициями в ClickHouse.
+### Шаг 7. Дополнительные задания по теме мутаций и работы с партициями в ClickHouse.
 
 ---
 
-#### 🔄 7.1. Исследование других типов мутаций
-
-
+- Исследование других типов мутаций
+- Создание новой партиции и вставка данных
+- Использование TTL для автоматического удаления старых данных
 
 ---
 
-#### 📦 7.2. Создание новой партиции и вставка данных
+🔧 Работа с партициями по дате (сутки)
 
-Добавляю данные с новой датой, которая создаст новую партицию (202601):
+#### 🧱 7.1: Создание новой таблицы с суточным партиционированием
+
+На основе имеющейся тестовой таблицы `default.uk_price_paid` создаю новую таблицу с суточным партиционированием
 
 ```sql
-INSERT INTO default.user_activity VALUES 
-(4, 'login', '2026-01-01 10:00:00'),
-(5, 'purchase', '2026-01-01 12:00:00');
+CREATE TABLE default.uk_price_paid_daily
+AS default.uk_price_paid
+ENGINE = MergeTree
+PARTITION BY toYYYYMMDD(date)
+ORDER BY (postcode1, postcode2, addr1, addr2);
+```
+---
+#### 📥 7.2: Перенос данных за один день (например, 2025-11-01)
+
+```sql
+INSERT INTO default.uk_price_paid_daily
+SELECT *
+FROM default.uk_price_paid
+WHERE date = '2025-11-01';
 ```
 
-Проверка новых партиций:
+Проверка созданной партиции:
 
 ```sql
 SELECT DISTINCT partition
 FROM system.parts
-WHERE table = 'user_activity';
+WHERE table = 'uk_price_paid_daily';
 ```
 
-✅ Скриншот: подтверждение наличия партиции 202601.
+Скриншот результата запроса
+![hw16_add_step2]()
 
 ---
 
-#### ⏳ 7.3. Использование TTL для автоматического удаления старых данных
-
-Создадаю таблицу с TTL: удалять данные через 15 дней после activity_date.
+#### 🧹 7.3: Удаление партиции за 2025-11-01
 
 ```sql
-CREATE TABLE default.user_activity_ttl
-(
-    user_id UInt32,
-    activity_type String,
-    activity_date DateTime
-)
+ALTER TABLE default.uk_price_paid_daily
+DROP PARTITION 20251101;
+```
+Проверка
+```sql
+SELECT partition, min_date, max_date, active
+FROM system.parts
+WHERE table = 'uk_price_paid_daily'
+  AND partition = '20251101';
+```
+
+Скриншот результата запроса
+![hw16_add_step3]()
+
+---
+
+#### 🔁 7.4: Повторная вставка данных за тот же день
+
+```sql
+INSERT INTO default.uk_price_paid_daily
+SELECT *
+FROM default.uk_price_paid
+WHERE date = '2025-11-01';
+```
+---
+
+#### 🧩 7.5: DETACH партиции за 2025-11-01
+
+```sql
+ALTER TABLE default.uk_price_paid_daily
+DETACH PARTITION 20251101;
+```
+Проверка detached-партов:
+```sql
+SELECT * 
+FROM system.detached_parts 
+WHERE table = 'uk_price_paid_daily';
+```
+Скриншот результата запроса
+![hw16_add_step5]()
+
+---
+
+#### ⚖️ 7.6: Сравнение DETACHED и вставленных данных
+
+Создаю таблицу для сравнения:
+
+```sql
+CREATE TABLE default.uk_price_paid_daily_compare
+AS default.uk_price_paid_daily
 ENGINE = MergeTree
-PARTITION BY toYYYYMM(activity_date)
-ORDER BY (user_id, activity_date)
-TTL activity_date + INTERVAL 15 DAY;
+PARTITION BY toYYYYMMDD(date)
+ORDER BY (postcode1, postcode2, addr1, addr2);
 ```
-
-Вставляю устаревшие данные:
+	1.	ATTACH PART из detached:
+```sql
+ALTER TABLE default.uk_price_paid_daily_compare
+ATTACH PARTITION 20251101
+FROM uk_price_paid_daily;
+```
+	2.	Повторно вставляю свежие данные:
 
 ```sql
-INSERT INTO default.user_activity_ttl VALUES 
-(6, 'login', '2025-11-01 10:00:00'),
-(7, 'logout', '2025-11-02 10:00:00');
+INSERT INTO default.uk_price_paid_daily_compare
+SELECT *
+FROM default.uk_price_paid
+WHERE date = '2025-11-01';
 ```
-
-Проверяю, что данные удалятся автоматически при следующем фоне merge.
-
-Проверка TTL:
-
+Сравнение:
 ```sql
-SELECT table, name, ttl_expression, ttl_info
-FROM system.columns
-WHERE table = 'user_activity_ttl';
+SELECT date, count(*) 
+FROM default.uk_price_paid_daily_compare
+GROUP BY date;
 ```
 
-✅ Скриншот: `SELECT * FROM user_activity_ttl` до и после очистки.
+Скриншот результата запроса
+![hw16_add_step6]()
+
 
 ---
-## Выводы
+
+#### 🧬 7.7: Реплицируемая таблица + FETCH
+
+Возвращаю партицию из detached обратно в `uk_price_paid_daily`
+
+```sql
+ALTER TABLE default.uk_price_paid_daily
+ATTACH PARTITION 20251101;
+```
+
+Создаю реплицируемую таблицу
+
+```sql
+CREATE TABLE default.uk_price_paid_daily_repl
+AS default.uk_price_paid_daily
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/default/uk_price_paid_daily_repl', '{replica}')
+PARTITION BY toYYYYMMDD(date)
+ORDER BY (postcode1, postcode2, addr1, addr2);
+```
+
+Скачиваю партицию:
+
+```sql
+ALTER TABLE default.uk_price_paid_daily_repl
+ATTACH PARTITION 20251101
+FROM default.uk_price_paid_daily;
+```
+
+Проверяю наличие нужной партиции
+
+```sql
+SELECT partition, count(), min_date, max_date
+FROM system.parts
+WHERE table = 'uk_price_paid_daily_repl'
+  AND partition = '20251101'
+  AND active
+GROUP BY partition, min_date, max_date;
+```
+
+Скриншот результат запроса
+![hw16_add_step7]()
+
+---
+
+#### ⏳ 7.8: TTL на удаление старых партиций
+
+Создаю таблицу с PARTITION BY toYYYYMM(date) и TTL:
+```sql
+CREATE TABLE default.uk_price_paid_monthly_ttl
+AS default.uk_price_paid
+ENGINE = MergeTree
+PARTITION BY toYYYYMM(date)
+ORDER BY (postcode1, postcode2, addr1, addr2)
+TTL date + INTERVAL 1 MONTH;
+```
+
+Вставляю устаревшие записи:
+
+```sql
+INSERT INTO default.uk_price_paid_monthly_ttl
+SELECT *
+FROM default.uk_price_paid
+WHERE date BETWEEN '2015-01-01' AND '2015-12-31';
+```
+
+Проверка созданных партиций:
+```sql
+SELECT
+    partition,
+    min_date,
+    max_date,
+    count() AS rows
+FROM system.parts
+WHERE table = 'uk_price_paid_monthly_ttl'
+  AND active
+GROUP BY partition, min_date, max_date
+ORDER BY partition;
+```
+
+
+После срабатывания TTL (или вручную через OPTIMIZE TABLE) данные удаляются.
+Ручное удаление `OPTIMIZE TABLE default.uk_price_paid_monthly_ttl FINAL;`
+Проверка:
+
+```sql
+SELECT DISTINCT partition
+FROM system.parts
+WHERE table = 'uk_price_paid_monthly_ttl';
+```
+
+Скриншот результата запроса
+![hw16_add_step8]()
+
+---
+
+### Выводы
+
+* Создана и заполнена таблица `user_activity` с партиционированием по дате.
+* Выполнена мутация с обновлением данных и проверена через system.mutations.
+* Успешно удалена партиция по дате и подтверждено её отсутствие.
+* Реализован полный цикл работы с партициями: INSERT, DROP, DETACH, ATTACH, REPL.
+* Настроена TTL-очистка устаревших данных на примере месячного партиционирования.
+* Отработаны ключевые приёмы безопасного восстановления и сравнения партиций.
