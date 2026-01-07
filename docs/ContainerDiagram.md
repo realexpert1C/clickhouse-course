@@ -1,3 +1,6 @@
+## Container Diagram
+```mermaid
+[Сюда вставь первый код]
 C4Container
     title Container Diagram — ClickHouse Analytics Platform
 
