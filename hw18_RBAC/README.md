@@ -61,7 +61,7 @@ SELECT name FROM system.users WHERE name = 'jhon';
 └──────┘
 ```
 Результат выполнения запроса
-![hw18_check_jhon]()
+![hw18_check_jhon](https://github.com/realexpert1C/clickhouse-course/blob/4cee410f18a8d4b4edb850686d9e64fbe0a39c16/images/hw18_check_jhon.png)
 
 #### Проверка роли `devs`
 ```sql
@@ -75,7 +75,7 @@ SELECT name FROM system.roles WHERE name = 'devs';
 └──────┘
 ```
 Результат выполнения запроса
-![hw18_check_devs]()
+![hw18_check_devs](https://github.com/realexpert1C/clickhouse-course/blob/4cee410f18a8d4b4edb850686d9e64fbe0a39c16/images/hw18_check_devs.png)
 
 #### Проверка выданных прав роли `devs`
 ```sql
@@ -91,7 +91,7 @@ SELECT * FROM system.grants WHERE role_name = 'devs';
 └──────────┴──────────┴────────────┴────────┴─────────┴─────────────┘
 ```
 Результат выполнения запроса
-![hw18_check_system_grants]()
+![hw18_check_system_grants](https://github.com/realexpert1C/clickhouse-course/blob/4cee410f18a8d4b4edb850686d9e64fbe0a39c16/images/hw18_check_system_grants.png)
 
 #### Проверка назначенной роли пользователю `jhon`
 ```sql
@@ -105,7 +105,7 @@ SELECT * FROM system.role_grants WHERE user_name = 'jhon';
 └───────────┴───────────────────┴─────────────────────────┴───────────────────┘
 ```
 Результат выполнения запроса
-![hw18_check_role_grants]()
+![hw18_check_role_grants](https://github.com/realexpert1C/clickhouse-course/blob/4cee410f18a8d4b4edb850686d9e64fbe0a39c16/images/hw18_check_role_grants.png)
 
 ---
 ### 📝 Комментарий с методической точки зрения
