@@ -56,7 +56,7 @@ clickhouse-backups
 5.	Оставить настройки по умолчанию (public access — выключен).
 6.	Подтвердить создание.
 
-✅ ![hw19_click_bucket]()
+✅ ![hw19_click_bucket](https://github.com/realexpert1C/clickhouse-course/blob/10ffe52d98d8f6be18a92dc2e1172ae8d77fa2c3/images/hw19_click_backet.png.jpeg)
 
 ---
 
