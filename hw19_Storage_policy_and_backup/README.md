@@ -290,31 +290,37 @@ docker run -d --name minio \
 Создание бакета для бэкапов
 
 Через Web UI MinIO создан бакет:
-	•	Имя бакета: `clickhouse-backups
-	•	Доступ: private
+* Имя бакета: clickhouse-backups
+* Доступ: `private
 
-⸻
+---
 
 Этап 2. Установка и настройка clickhouse-backup
 
-Утилита clickhouse-backup была установлена в контейнер ClickHouse (ch1).
+Утилита `clickhouse-backup` установлена в контейнер ClickHouse (ch1).
 
 Установка
 
+```bash
 wget https://github.com/Altinity/clickhouse-backup/releases/download/v2.5.20/clickhouse-backup-linux-amd64.tar.gz
 tar -xf clickhouse-backup-linux-amd64.tar.gz
 install -o root -g root -m 0755 build/linux/amd64/clickhouse-backup /usr/local/bin
-
+```
 Установка редактора
 
+```bash
 apt update && apt install nano -y
+```
 
 Создание каталога конфигурации
 
+```bash
 mkdir -p /etc/clickhouse-backup
+```
 
 Конфигурация /etc/clickhouse-backup/config.yml
 
+```yml
 general:
   remote_storage: s3
 
@@ -333,6 +339,7 @@ s3:
   compression_format: tar
   force_path_style: true
 
+```
 
 ⸻
 
