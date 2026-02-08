@@ -103,7 +103,7 @@ s3:
   force_path_style: true
 ```
 
-✅ ![Скриншот содержимого config.yml]()
+✅ ![Скриншот содержимого config.yml](https://github.com/realexpert1C/clickhouse-course/blob/7f995b6bdbc2bdc982a155323368206b7a6c6000/images/hw19_yaml_cfg.png)
 
 
 ---
