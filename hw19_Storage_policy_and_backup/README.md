@@ -297,7 +297,9 @@ docker run -d --name minio \
 
 Этап 2. Установка и настройка clickhouse-backup
 
-Утилита `clickhouse-backup` установлена в контейнер ClickHouse (ch1).
+ВНУТРИ КОНТЕЙНЕРА CH1:
+
+Утилита `clickhouse-backup` в контейнере ClickHouse (ch1).
 
 Установка
 
