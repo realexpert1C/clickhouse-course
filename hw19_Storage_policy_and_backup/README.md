@@ -192,7 +192,7 @@ SELECT database, name, engine, storage_policy
 FROM system.tables
 WHERE database='hw19';
 ```
-![✅ Скриншот вывода SELECT](https://github.com/realexpert1C/clickhouse-course/blob/d424555a08cde45962270a5e4e56b982c9db1302/images/hw19_baseline.png)
+![✅ Скриншот вывода SELECT](https://github.com/realexpert1C/clickhouse-course/blob/28479b4254130d57eeb506323a0b6ee64d25bba0/images/hw19_check_tables.png)
 
 
 Фиксация исходного состояния данных (baseline)
