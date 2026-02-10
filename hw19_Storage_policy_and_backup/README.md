@@ -291,7 +291,10 @@ docker run -d --name minio \
 
 Через Web UI MinIO создан бакет:
 * Имя бакета: clickhouse-backups
-* Доступ: `private
+* Доступ: `private`
+
+✅ ![hw19_click_bucket](https://github.com/realexpert1C/clickhouse-course/blob/10ffe52d98d8f6be18a92dc2e1172ae8d77fa2c3/images/hw19_click_backet.png.jpeg)
+
 
 ---
 
