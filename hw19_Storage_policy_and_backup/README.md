@@ -46,7 +46,7 @@ docker run -d --name minio \
 * Имя бакета: clickhouse-backups
 * Доступ: `private`
 
-✅ ![hw19_click_bucket](https://github.com/realexpert1C/clickhouse-course/blob/10ffe52d98d8f6be18a92dc2e1172ae8d77fa2c3/images/hw19_click_backet.png.jpeg)
+✅ ![Скриншот бакета в MINIO](https://github.com/realexpert1C/clickhouse-course/blob/10ffe52d98d8f6be18a92dc2e1172ae8d77fa2c3/images/hw19_click_backet.png.jpeg)
 
 
 ---
@@ -109,8 +109,9 @@ s3:
 
 Конфигурация storage policy
 
-Файл /etc/clickhouse-server/config.d/storage_policy.xml:
+Файл `/etc/clickhouse-server/config.d/storage_policy.xml`:
 
+```xml
 <clickhouse>
   <storage_configuration>
     <policies>
@@ -124,6 +125,7 @@ s3:
     </policies>
   </storage_configuration>
 </clickhouse>
+```
 
 Применение конфигурации
 ```bash
@@ -199,22 +201,29 @@ FROM hw19.uk_price_paid_daily_copy;
 
 Проверка удалённых бэкапов
 
+```bash
 clickhouse-backup list remote
-
+```
 Полный бэкап
 
+```bash
 clickhouse-backup create_remote full_backup --rbac
+```
 
 Бэкап одной таблицы
 
+```bash
 clickhouse-backup create_remote t1_backup -t hw19.t1
+```
 
 Бэкап базы данных
 
+```bash
 clickhouse-backup create_remote hw19_db_backup -t 'hw19.*'
+```
 
-
-⸻
+✅ ![Скриншот бакета в MINIO](https://github.com/realexpert1C/clickhouse-course/blob/10ffe52d98d8f6be18a92dc2e1172ae8d77fa2c3/images/hw19_click_backet.png.jpeg)
+---
 
 Этап 5. Повреждение данных
 
