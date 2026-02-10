@@ -222,7 +222,7 @@ clickhouse-backup create_remote t1_backup -t hw19.t1
 clickhouse-backup create_remote hw19_db_backup -t 'hw19.*'
 ```
 
-✅ ![Скриншот бакета в MINIO](https://github.com/realexpert1C/clickhouse-course/blob/10ffe52d98d8f6be18a92dc2e1172ae8d77fa2c3/images/hw19_click_backet.png.jpeg)
+✅ ![Скриншот бакета в MINIO](https://github.com/realexpert1C/clickhouse-course/blob/5145c196e29f7014d17d6503832e36a03345197e/images/hw19_backups.png)
 ---
 
 Этап 5. Повреждение данных
