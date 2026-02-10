@@ -46,7 +46,7 @@ docker run -d --name minio \
 * Имя бакета: clickhouse-backups
 * Доступ: `private`
 
-✅ ![Скриншот бакета в MINIO](https://github.com/realexpert1C/clickhouse-course/blob/10ffe52d98d8f6be18a92dc2e1172ae8d77fa2c3/images/hw19_click_backet.png.jpeg)
+![✅ Скриншот бакета в MINIO](https://github.com/realexpert1C/clickhouse-course/blob/10ffe52d98d8f6be18a92dc2e1172ae8d77fa2c3/images/hw19_click_backet.png.jpeg)
 
 
 ---
@@ -99,7 +99,7 @@ s3:
 
 ```
 
-✅ ![Скриншот содержимого config.yml](https://github.com/realexpert1C/clickhouse-course/blob/7f995b6bdbc2bdc982a155323368206b7a6c6000/images/hw19_yaml_cfg.png)
+![✅ Скриншот содержимого config.yml](https://github.com/realexpert1C/clickhouse-course/blob/7f995b6bdbc2bdc982a155323368206b7a6c6000/images/hw19_yaml_cfg.png)
 
 ---
 
@@ -143,7 +143,7 @@ FROM system.storage_policies
 ORDER BY policy_name, volume_name;
 ```
 
-✅ ![Скриншот вывода SELECT](https://github.com/realexpert1C/clickhouse-course/blob/3030ba68169c596fdfec247039d50c9dafd090c7/images/hw19_screen_policy.png)
+![✅ Скриншот вывода SELECT](https://github.com/realexpert1C/clickhouse-course/blob/3030ba68169c596fdfec247039d50c9dafd090c7/images/hw19_screen_policy.png)
 
 ---
 
@@ -161,14 +161,17 @@ CREATE TABLE hw19.t1
   ts DateTime
 )
 ENGINE = MergeTree
-ORDER BY id;
+ORDER BY id
+SETTINGS storage_policy = 'local_only';
 
 CREATE TABLE hw19.uk_price_paid_daily_copy
 AS default.uk_price_paid_daily
 ENGINE = MergeTree
-ORDER BY tuple();
+ORDER BY tuple()
+SETTINGS storage_policy = 'local_only';
 
 ```
+
 
 Заполнение данными
 
@@ -183,6 +186,14 @@ SELECT * FROM default.uk_price_paid_daily
 LIMIT 10000;
 
 ```
+Проверка наличия созданных таблиц
+```sql
+SELECT database, name, engine, storage_policy
+FROM system.tables
+WHERE database='hw19';
+```
+![✅ Скриншот вывода SELECT](https://github.com/realexpert1C/clickhouse-course/blob/d424555a08cde45962270a5e4e56b982c9db1302/images/hw19_baseline.png)
+
 
 Фиксация исходного состояния данных (baseline)
 
@@ -193,7 +204,7 @@ SELECT count(), sum(price)
 FROM hw19.uk_price_paid_daily_copy;
 ```
 
-✅ ![Скриншот выводов SELECT ... FROM hw19.t1 и SELECT ... FROM hw19.uk_price_paid_daily_copy](https://github.com/realexpert1C/clickhouse-course/blob/d424555a08cde45962270a5e4e56b982c9db1302/images/hw19_baseline.png)
+![✅ Скриншот выводов SELECT ... FROM hw19.t1 и SELECT ... FROM hw19.uk_price_paid_daily_copy](https://github.com/realexpert1C/clickhouse-course/blob/d424555a08cde45962270a5e4e56b982c9db1302/images/hw19_baseline.png)
 
 ---
 
@@ -222,7 +233,7 @@ clickhouse-backup create_remote t1_backup -t hw19.t1
 clickhouse-backup create_remote hw19_db_backup -t 'hw19.*'
 ```
 
-✅ ![Скриншот бакета в MINIO](https://github.com/realexpert1C/clickhouse-course/blob/5145c196e29f7014d17d6503832e36a03345197e/images/hw19_backups.png)
+![✅ Скриншот бакета в MINIO](https://github.com/realexpert1C/clickhouse-course/blob/5145c196e29f7014d17d6503832e36a03345197e/images/hw19_backups.png)
 ---
 
 Этап 5. Повреждение данных
