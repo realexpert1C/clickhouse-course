@@ -290,7 +290,7 @@ FROM hw19.uk_price_paid_daily_copy;
 ```
 
 
-✅ ![Скриншот выводов SELECT ... ](https://github.com/realexpert1C/clickhouse-course/blob/8dc52bf7dc4af908ce26526d53f9819b4876ba4d/images/hw19_changes.png)
+✅ ![Скриншот выводов SELECT ... ](https://github.com/realexpert1C/clickhouse-course/blob/752ce739ca312f5ea3eb11662e0d2316e7d75a3c/images/hw19_base_compare.png)
 
 
 Результаты совпадают с зафиксированными значениями до повреждения данных.
