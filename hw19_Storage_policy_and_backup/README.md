@@ -373,17 +373,24 @@ s3:
 </clickhouse>
 
 Применение конфигурации
+```bash
+docker exec -it ch1 clickhouse-client
+```
 
-SYSTEM RELOAD CONFIG;
-
+```sql
+SYSTEM RELOAD CONFIG;`
+```
 Проверка
 
+```sql
 SELECT policy_name, volume_name, disks
 FROM system.storage_policies
 ORDER BY policy_name, volume_name;
+```
 
+✅ ![Скриншот вывода SELECT](https://github.com/realexpert1C/clickhouse-course/blob/7f995b6bdbc2bdc982a155323368206b7a6c6000/images/hw19_yaml_cfg.png)
 
-⸻
+---
 
 Этап 3. Создание тестовой базы данных и таблиц
 
