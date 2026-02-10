@@ -346,7 +346,9 @@ s3:
 
 ```
 
-⸻
+✅ ![Скриншот содержимого config.yml](https://github.com/realexpert1C/clickhouse-course/blob/7f995b6bdbc2bdc982a155323368206b7a6c6000/images/hw19_yaml_cfg.png)
+
+---
 
 Этап 2.1. Настройка Storage Policy в ClickHouse
 
