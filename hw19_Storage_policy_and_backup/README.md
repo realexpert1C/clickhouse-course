@@ -229,22 +229,38 @@ clickhouse-backup create_remote hw19_db_backup -t 'hw19.*'
 
 Изменение данных в таблице
 
+```sql
 ALTER TABLE hw19.t1
 UPDATE message = 'CORRUPTED'
 WHERE id = 2;
+```
 
 Удаление таблицы
 
+```sql
 DROP TABLE hw19.uk_price_paid_daily_copy;
+```
 
+Проверяю контрольные запросы
 
-⸻
+```sql
+SELECT * FROM hw19.t1;
+
+SELECT count(), sum(price)
+FROM hw19.uk_price_paid_daily_copy;
+```
+
+✅ ![Скриншот выводов SELECT ... FROM hw19.t1 и SELECT ... FROM hw19.uk_price_paid_daily_copy](https://github.com/realexpert1C/clickhouse-course/blob/d424555a08cde45962270a5e4e56b982c9db1302/images/hw19_baseline.png)
+
+---
 
 Этап 6. Восстановление данных
 
 Восстановление одной таблицы
 
+```bash
 clickhouse-backup restore_remote t1_backup -t hw19.t1
+```
 
 Восстановление базы данных
 
