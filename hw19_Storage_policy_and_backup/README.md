@@ -191,7 +191,7 @@ SELECT count(), sum(price)
 FROM hw19.uk_price_paid_daily_copy;
 ```
 
-✅ ![Скриншот выводов SELECT ... FROM hw19.t1 и SELECT ... FROM hw19.uk_price_paid_daily_copy](https://github.com/realexpert1C/clickhouse-course/blob/3030ba68169c596fdfec247039d50c9dafd090c7/images/hw19_screen_policy.png)
+✅ ![Скриншот выводов SELECT ... FROM hw19.t1 и SELECT ... FROM hw19.uk_price_paid_daily_copy](https://github.com/realexpert1C/clickhouse-course/blob/d424555a08cde45962270a5e4e56b982c9db1302/images/hw19_baseline.png)
 
 ---
 
