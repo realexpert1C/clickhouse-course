@@ -250,7 +250,7 @@ SELECT count(), sum(price)
 FROM hw19.uk_price_paid_daily_copy;
 ```
 
-✅ ![Скриншот выводов SELECT ... FROM hw19.t1 и SELECT ... FROM hw19.uk_price_paid_daily_copy](https://github.com/realexpert1C/clickhouse-course/blob/d424555a08cde45962270a5e4e56b982c9db1302/images/hw19_baseline.png)
+✅ ![Скриншот выводов SELECT ... FROM hw19.t1 и SELECT ... FROM hw19.uk_price_paid_daily_copy](https://github.com/realexpert1C/clickhouse-course/blob/8dc52bf7dc4af908ce26526d53f9819b4876ba4d/images/hw19_changes.png)
 
 ---
 
@@ -264,281 +264,34 @@ clickhouse-backup restore_remote t1_backup -t hw19.t1
 
 Восстановление базы данных
 
+```bash
 clickhouse-backup restore_remote hw19_db_backup -t 'hw19.*'
+```
 
 Полное восстановление
 
+```bash
 clickhouse-backup restore_remote full_backup --rbac
+```
 
-
-⸻
+---
 
 Этап 7. Проверка успешного восстановления
 
 Сравнение с baseline
 
-SELECT count(), min(ts), max(ts) FROM hw19.t1;
-
-SELECT count(), sum(price)
-FROM hw19.uk_price_paid_daily_copy;
-
-Результаты совпадают с зафиксированными значениями до повреждения данных.
-
----
-
-Выводы
-	•	Настроено резервное копирование ClickHouse в S3-совместимое хранилище.
-	•	Проверены различные варианты бэкапов (полный, таблица, база данных).
-	•	Смоделированы повреждения данных.
-	•	Успешно выполнено восстановление данных из резервных копий.
-
-
-
-
-
----
-
-## Этап 1. Развёртывание S3-совместимого хранилища (MinIO)
-
-MinIO был развёрнут в Docker-контейнере с использованием volume для хранения данных.
-
-### Создание каталога для данных MinIO
-```bash
-mkdir -p ~/infra/minio/data
-
-Запуск контейнера MinIO
-
-docker run -d --name minio \
-  -p 9002:9000 -p 9102:9201 \
-  -e "MINIO_ROOT_USER=admin" \
-  -e "MINIO_ROOT_PASSWORD=admin123" \
-  -v ~/infra/minio/data:/data \
-  --network infra-net \
-  quay.io/minio/minio server /data --console-address ":9201"
-
-Создание бакета для бэкапов
-
-Через Web UI MinIO был создан бакет:
-	•	Имя бакета: clickhouse-backups
-	•	Доступ: private
-
-📸 Скриншот: Web UI MinIO с созданным бакетом clickhouse-backups
-
-⸻
-
-Этап 2. Установка и настройка clickhouse-backup
-
-Утилита clickhouse-backup была установлена в контейнер ClickHouse (ch1).
-
-Установка
-
-wget https://github.com/Altinity/clickhouse-backup/releases/download/v2.5.20/clickhouse-backup-linux-amd64.tar.gz
-tar -xf clickhouse-backup-linux-amd64.tar.gz
-install -o root -g root -m 0755 build/linux/amd64/clickhouse-backup /usr/local/bin
-
-Установка редактора
-
-apt update && apt install nano -y
-
-Создание каталога конфигурации
-
-mkdir -p /etc/clickhouse-backup
-
-Конфигурация /etc/clickhouse-backup/config.yml
-
-general:
-  remote_storage: s3
-
-clickhouse:
-  username: default
-  password: "default123"
-  host: localhost
-  port: 9000
-
-s3:
-  access_key: admin
-  secret_key: admin123
-  bucket: clickhouse-backups
-  path: /backups
-  acl: private
-  compression_format: tar
-  force_path_style: true
-
-📸 Скриншот: содержимое /etc/clickhouse-backup/config.yml
-
-⸻
-
-Этап 2.1. Настройка Storage Policy в ClickHouse
-
-Для выполнения требований задания была добавлена пользовательская политика хранения.
-
-Конфигурация storage policy
-
-Файл /etc/clickhouse-server/config.d/storage_policy.xml:
-
-<clickhouse>
-  <storage_configuration>
-    <policies>
-      <local_only>
-        <volumes>
-          <main>
-            <disk>default</disk>
-          </main>
-        </volumes>
-      </local_only>
-    </policies>
-  </storage_configuration>
-</clickhouse>
-
-Применение конфигурации
-
-SYSTEM RELOAD CONFIG;
-
-Проверка
-
-SELECT policy_name, volume_name, disks
-FROM system.storage_policies
-ORDER BY policy_name, volume_name;
-
-📸 Скриншот: вывод system.storage_policies
-
-⸻
-
-Этап 3. Создание тестовой базы данных и таблиц
-
-Создание базы и таблиц
-
-CREATE DATABASE IF NOT EXISTS hw19;
-
-CREATE TABLE hw19.t1
-(
-  id UInt32,
-  message String,
-  ts DateTime
-)
-ENGINE = MergeTree
-ORDER BY id;
-
-CREATE TABLE hw19.uk_price_paid_daily_copy
-AS default.uk_price_paid_daily
-ENGINE = MergeTree
-ORDER BY tuple();
-
-Заполнение данными
-
-INSERT INTO hw19.t1 VALUES
-(1,'Hello',now()),
-(2,'World',now());
-
-INSERT INTO hw19.uk_price_paid_daily_copy
-SELECT * FROM default.uk_price_paid_daily
-LIMIT 10000;
-
-Фиксация исходного состояния данных (baseline)
-
-SELECT count(), min(ts), max(ts) FROM hw19.t1;
-
-SELECT count(), sum(price)
-FROM hw19.uk_price_paid_daily_copy;
-
-📸 Скриншоты: результаты SELECT до повреждений
-
-⸻
-
-Этап 4. Резервное копирование данных в S3
-
-Проверка удалённых бэкапов
-
-clickhouse-backup list remote
-
-Полный бэкап
-
-clickhouse-backup create_remote full_backup --rbac
-
-Бэкап одной таблицы
-
-clickhouse-backup create_remote t1_backup -t hw19.t1
-
-Бэкап базы данных
-
-clickhouse-backup create_remote hw19_db_backup -t 'hw19.*'
-
-Проверка
-
-clickhouse-backup list remote
-
-📸 Скриншоты: выполнение команд и список remote-бэкапов
-
-⸻
-
-Этап 5. Повреждение данных
-
-Изменение данных в таблице
-
-ALTER TABLE hw19.t1
-UPDATE message = 'CORRUPTED'
-WHERE id = 2;
-
-SELECT * FROM hw19.t1 ORDER BY id;
-
-📸 Скриншот: изменённые данные
-
-Удаление таблицы
-
-DROP TABLE hw19.uk_price_paid_daily_copy;
-
-EXISTS TABLE hw19.uk_price_paid_daily_copy;
-
-📸 Скриншот: таблица отсутствует
-
-⸻
-
-Этап 6. Восстановление данных
-
-Восстановление одной таблицы
-
-````bash
-clickhouse-backup restore_remote t1_backup -t hw19.t1
-```
-Проверка:
 ```sql
-SELECT * FROM hw19.t1 ORDER BY id;
-```
-
-📸 [Скриншот: данные восстановлены]()
-
----
-
-Восстановление базы данных
-
-````bash
-clickhouse-backup restore_remote hw19_db_backup -t 'hw19.*'
-```
-Проверка:
-````sql
-SELECT count(), sum(price)
-FROM hw19.uk_price_paid_daily_copy;
-```
-📸 [Скриншот: таблица и данные восстановлены]()
-
----
-
-Полное восстановление
-````bash
-clickhouse-backup restore_remote full_backup --rbac
-```
-📸 [Скриншот: восстановленные базы данных]()
-
----
-
-Этап 7. Проверка успешного восстановления
-
-Сравнение с baseline
-
 SELECT count(), min(ts), max(ts) FROM hw19.t1;
 
+SELECT * FROM hw19.t1;
+
 SELECT count(), sum(price)
 FROM hw19.uk_price_paid_daily_copy;
+```
+
+
+✅ ![Скриншот выводов SELECT ... ](https://github.com/realexpert1C/clickhouse-course/blob/8dc52bf7dc4af908ce26526d53f9819b4876ba4d/images/hw19_changes.png)
+
 
 Результаты совпадают с зафиксированными значениями до повреждения данных.
 
@@ -549,8 +302,3 @@ FROM hw19.uk_price_paid_daily_copy;
 	•	Проверены различные варианты бэкапов (полный, таблица, база данных).
 	•	Смоделированы повреждения данных.
 	•	Успешно выполнено восстановление данных из резервных копий.
-
----
-
-
-
