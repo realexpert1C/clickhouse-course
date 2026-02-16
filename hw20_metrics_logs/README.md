@@ -115,18 +115,37 @@ ORDER BY tuple();
 
 ## 2.2 Добавление кастомных метрик
 
-### 1. Failed Queries
+### 1. Merge Throughput (rows/sec) - Скорость слияния строк (строк в секунду)
 
 ```sql
 INSERT INTO custom.dashboards VALUES
 (
 'Custom',
-'Failed Queries',
+'Merge Throughput (rows/sec)',
+'SELECT
+  toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT AS t,
+  coalesce(max(ProfileEvent_MergedRows)
+           - min(ProfileEvent_MergedRows), 0)
+FROM merge(''system'', ''^metric_log$'')
+WHERE event_time >= now() - {seconds:UInt32}
+GROUP BY t
+ORDER BY t
 '
-SELECT
-    toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND) AS t,
-    sum(ProfileEvent_FailedQuery)
-FROM system.metric_log
+);
+```
+---
+
+### 2. Active Parts Count - Количество активных партов
+
+```sql
+INSERT INTO custom.dashboards VALUES
+(
+'Custom',
+'Active Parts Count',
+'SELECT
+  toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT AS t,
+  coalesce(avg(CurrentMetric_PartsActive), 0)
+FROM merge(''system'', ''^metric_log$'')
 WHERE event_time >= now() - {seconds:UInt32}
 GROUP BY t
 ORDER BY t
@@ -136,127 +155,21 @@ WITH FILL STEP {rounding:UInt32}
 ```
 ---
 
-### 2. Delayed Inserts
+### 3. Insert Throughput (rows/sec) — Скорость вставки строк (строк в секунду)
 
 ```sql
 INSERT INTO custom.dashboards VALUES
 (
 'Custom',
-'Delayed Inserts',
-'
-SELECT
-    toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND) AS t,
-    avg(CurrentMetric_DelayedInserts)
-FROM system.metric_log
+'Insert Throughput (rows/sec)',
+'SELECT
+  toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT AS t,
+  coalesce(max(ProfileEvent_InsertedRows)
+           - min(ProfileEvent_InsertedRows), 0)
+FROM merge(''system'', ''^metric_log$'')
 WHERE event_time >= now() - {seconds:UInt32}
 GROUP BY t
 ORDER BY t
-WITH FILL STEP {rounding:UInt32}
-'
-);
-```
----
-
-### 3. Replication Absolute Delay
-
-```sql
-INSERT INTO custom.dashboards VALUES
-(
-'Custom',
-'Replication Absolute Delay',
-'
-SELECT
-    now() AS t,
-    max(absolute_delay)
-FROM system.replicas
-'
-);
-```
----
-
-### 4. Replication Queue Size
-
-```sql
-INSERT INTO custom.dashboards VALUES
-(
-'Custom',
-'Replication Queue Size',
-'
-SELECT
-    now() AS t,
-    sum(queue_size)
-FROM system.replicas
-'
-);
-```
----
-
-### 5. Background Pool Usage
-
-```sql
-INSERT INTO custom.dashboards VALUES
-(
-'Custom',
-'Background Pool Usage',
-'
-SELECT
-    now() AS t,
-    maxIf(value, metric = ''BackgroundPoolTask'')
-FROM system.metrics
-'
-);
-```
----
-
-### 6. Context Lock Wait
-
-```sql
-INSERT INTO custom.dashboards VALUES
-(
-'Custom',
-'Context Lock Wait',
-'
-SELECT
-    now() AS t,
-    value
-FROM system.metrics
-WHERE metric = ''ContextLockWait''
-'
-);
-```
----
-
-### 7. Long Running Queries (> 10 sec)
-
-```sql
-INSERT INTO custom.dashboards VALUES
-(
-'Custom',
-'Long Running Queries',
-'
-SELECT
-    now() AS t,
-    count()
-FROM system.processes
-WHERE elapsed > 10
-'
-);
-```
----
-
-### 8. Replication Errors
-
-```sql
-INSERT INTO custom.dashboards VALUES
-(
-'Custom',
-'Replication Errors',
-'
-SELECT
-    now() AS t,
-    count()
-FROM system.replication_queue
-WHERE last_exception != ''''
 '
 );
 ```
@@ -267,7 +180,7 @@ WHERE last_exception != ''''
 Для загрузки кастомных метрик использую:
 ```sql
 SELECT title, query
-FROM merge(REGEXP('custom|system'), 'dashboards')
+FROM merge('custom', '^dashboards$')
 WHERE dashboard = 'Custom';
 ```
 После этого кастомные графики отображаются в Web Dashboard.
