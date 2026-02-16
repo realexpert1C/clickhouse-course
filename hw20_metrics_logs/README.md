@@ -67,7 +67,7 @@ http://:8123/dashboard
 - Количество частей
 - Системные показатели
 
-![📸 Скриншот 1 — Штатные метрики ClickHouse]()
+![📸 Скриншот 1 — Штатные метрики ClickHouse](https://github.com/realexpert1C/clickhouse-course/blob/caefb962f59713b6614180ff6700351088b1885c/images/hw20_regular_metrics.png)
 
 ---
 
@@ -185,7 +185,7 @@ WHERE dashboard = 'Custom';
 ```
 После этого кастомные графики отображаются в Web Dashboard.
 
-![📸 Скриншот 2 — Все кастомные метрики в Dashboard]()
+![📸 Скриншот 2 — Все кастомные метрики в Dashboard](https://github.com/realexpert1C/clickhouse-course/blob/caefb962f59713b6614180ff6700351088b1885c/images/hw20_custom_metrics.png)
 
 ---
 
