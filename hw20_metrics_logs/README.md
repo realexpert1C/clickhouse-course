@@ -382,13 +382,19 @@ rate(ClickHouseProfileEvents_Query[1m])
 
 # Дополнительное задание (логирование)
 
-### 1. Таблица логов Engine=Null
+### 1. Таблица логов Engine=Null, например для запросов
 
 ```sql
-CREATE TABLE logs_null
+CREATE DATABASE IF NOT EXISTS observability ON CLUSTER replicated_cluster;
+
+CREATE TABLE observability.logs_null
+ON CLUSTER replicated_cluster
 (
     event_time DateTime,
-    message String
+    type String,
+    query_id String,
+    query String,
+    user String
 ) ENGINE = Null;
 ```
 ---
@@ -396,36 +402,67 @@ CREATE TABLE logs_null
 ### 2. Реплицируемая таблица
 
 ```sql
-CREATE TABLE logs_repl
+CREATE TABLE observability.logs_repl
+ON CLUSTER replicated_cluster
 (
     event_time DateTime,
-    message String,
-    replica String DEFAULT hostName()
+    type String,
+    query_id String,
+    query String,
+    user String,
+    replica LowCardinality(String) MATERIALIZED hostName()
 )
 ENGINE = ReplicatedMergeTree(
-'/clickhouse/tables/{shard}/logs_repl',
-'{replica}'
+    '/clickhouse/tables/{shard}/observability/logs_repl',
+    '{replica}'
 )
-ORDER BY event_time;
+ORDER BY (event_time, replica);
 ```
 
 ---
 
 ### 3. Materialized View
 
-CREATE MATERIALIZED VIEW mv_logs TO logs_repl AS
-SELECT *, hostName() FROM logs_null;
-
+```sql
+CREATE MATERIALIZED VIEW observability.mv_logs
+ON CLUSTER replicated_cluster
+TO observability.logs_repl
+AS
+SELECT
+    event_time,
+    type,
+    query_id,
+    query,
+    user
+FROM observability.logs_null;
+```
 
 ---
 
-### 4. Проверка репликации
+### 4. Проверка записи логов и репликации
 
-INSERT INTO logs_null VALUES (now(), 'test log');
+На ноде ch1 вставить:
+```sql
+INSERT INTO observability.logs_null
+SELECT
+    event_time,
+    type,
+    query_id,
+    query,
+    user
+FROM system.query_log
+WHERE type = 'QueryFinish'
+LIMIT 5;
+```
 
-SELECT * FROM logs_repl;
-
-📸 СКРИНШОТ: запись появилась на всех репликах
+На нодах ch2/ch3/ch4 проверить: 
+```sql
+SELECT *
+FROM observability.logs_repl
+ORDER BY event_time DESC
+LIMIT 10;
+```
+![📸 СКРИНШОТ: запись появилась на всех репликах]()
 
 ---
 
@@ -433,10 +470,9 @@ SELECT * FROM logs_repl;
 
 Настроен полный мониторинг:
 
-Тип	Инструмент
-ClickHouse внутренние метрики	Advanced Dashboard
-Метрики ОС	Node Exporter
-Метрики ClickHouse	Prometheus
-Визуализация	Grafana
-Репликация логов	Engine=Null + MV
+- ClickHouse внутренние метрики	Advanced Dashboard
+- Метрики ОС	Node Exporter
+- Метрики ClickHouse	Prometheus
+- Визуализация	Grafana
+- Репликация логов	Engine=Null + MV
 
