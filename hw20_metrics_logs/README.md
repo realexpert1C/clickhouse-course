@@ -228,7 +228,7 @@ scrape_configs:
 
   - job_name: node
     static_configs:
-      - targets: ['ch1:9100']
+      - targets: ['node_exporter:9100']
 ```
 
 ---
@@ -292,38 +292,51 @@ sudo systemctl restart clickhouse-server
 
 `ClickHouseMetrics_PartsActive`
 
-![📸 СКРИНШОТ: метрики в Prometheus]()
+![📸 СКРИНШОТ: метрики в Prometheus](https://github.com/realexpert1C/clickhouse-course/blob/81c2950e5fa491eaab4196de6e9ac0c8576978c2/images/hw20_prom_clean.png)
 
 ---
 
-## Шаг 2. Устанавливаю Node Exporter
+## Шаг 2. Устанавливаю Node Exporter для отслеживания работы железа
 
-sudo useradd -rs /bin/false node_exporter
-wget https://github.com/prometheus/node_exporter/releases/latest/download/node_exporter-1.9.0.linux-amd64.tar.gz
-tar -xvf node_exporter*.tar.gz
-sudo mv node_exporter*/node_exporter /usr/local/bin/
+Содержимое docker-compose.yml для Node Exporter:
 
-Service:
+```yml
+version: '3.8'
 
-sudo nano /etc/systemd/system/node_exporter.service
+services:
 
-[Unit]
-Description=Node Exporter
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: node_exporter
+    restart: unless-stopped
+    networks:
+      - infra-net
+    pid: "host"
+    volumes:
+      - /:/host:ro,rslave
+    command:
+      - '--path.rootfs=/host'
 
-[Service]
-User=node_exporter
-ExecStart=/usr/local/bin/node_exporter
+networks:
+  infra-net:
+    external: true
+```
+Проверка с помощью запросов:
 
-[Install]
-WantedBy=default.target
+#### CPU загрузка
+```promql
+rate(node_cpu_seconds_total{mode!="idle"}[1m])
+```
 
-sudo systemctl daemon-reload
-sudo systemctl enable node_exporter
-sudo systemctl start node_exporter
+#### Использование памяти
+```promql
+node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+```
 
-📸 СКРИНШОТ: http://localhost:9100/metrics
 
-⸻
+![📸 СКРИНШОТ: CPU загрузка]()
+![📸 СКРИНШОТ: Использование памяти]()
+---
 
 ## Шаг 3. Настройка Prometheus
 
