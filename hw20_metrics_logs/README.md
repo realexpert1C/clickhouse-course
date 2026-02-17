@@ -376,7 +376,7 @@ rate(ClickHouseProfileEvents_Query[1m])
 3.	Выбрать Prometheus datasource
 4.	Import
 
-![📸 СКРИНШОТ: Grafana dashboard]()
+![📸 СКРИНШОТ: Grafana dashboard](https://github.com/realexpert1C/clickhouse-course/blob/35105828ff04a2cc18bc8643cb8138d9aa045379/images/hw20_grafana.png)
 
 ---
 
@@ -462,7 +462,7 @@ FROM observability.logs_repl
 ORDER BY event_time DESC
 LIMIT 10;
 ```
-![📸 СКРИНШОТ: запись появилась на всех репликах]()
+![📸 СКРИНШОТ: запись появилась на всех репликах](https://github.com/realexpert1C/clickhouse-course/blob/35105828ff04a2cc18bc8643cb8138d9aa045379/images/hw20_logs.png)
 
 ---
 
@@ -475,4 +475,3 @@ LIMIT 10;
 - Метрики ClickHouse	Prometheus
 - Визуализация	Grafana
 - Репликация логов	Engine=Null + MV
-
