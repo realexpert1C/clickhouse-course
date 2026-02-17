@@ -256,8 +256,8 @@ networks:
 
 Проверка в браузере
 
-http://IP:9090
-http://IP:3000
+http://IP:9090 и http://IP:3000
+
 Grafana по умолчанию логин/пароль admin/admin, новый пароль admin123
 
 ## Шаг 2. Включаю экспорт метрик ClickHouse
@@ -296,7 +296,7 @@ sudo systemctl restart clickhouse-server
 
 ---
 
-## Шаг 2. Устанавливаю Node Exporter для отслеживания работы железа
+## Шаг 3. Устанавливаю Node Exporter для отслеживания работы железа
 
 Содержимое docker-compose.yml для Node Exporter:
 
@@ -333,56 +333,69 @@ rate(node_cpu_seconds_total{mode!="idle"}[1m])
 node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
 ```
 
+![📸 СКРИНШОТ: CPU загрузка](https://github.com/realexpert1C/clickhouse-course/blob/dc6902e8e5da678566874d4d6866b6e0a8a326ff/images/hw20_node_exp1.png)
 
-![📸 СКРИНШОТ: CPU загрузка]()
-![📸 СКРИНШОТ: Использование памяти]()
+![📸 СКРИНШОТ: Использование памяти](https://github.com/realexpert1C/clickhouse-course/blob/dc6902e8e5da678566874d4d6866b6e0a8a326ff/images/hw20_node_exp2.png)
+
 ---
 
-## Шаг 3. Настройка Prometheus
 
-Файл /etc/prometheus/prometheus.yml
+## Шаг 4. Настройка Grafana
 
-scrape_configs:
+✅ Добавить Prometheus как Data Source
+1.	Data sources
+3.	Add data source
+4.	Выбрать Prometheus
 
-  - job_name: clickhouse
-    static_configs:
-      - targets: ['ch1:9363']
+В поле URL указать: http://IP:9090
+(если Grafana и Prometheus в одной docker-сети infra-net)
 
-  - job_name: node
-    static_configs:
-      - targets: ['ch1:9100']
+Нажать: Save & Test
 
-sudo systemctl restart prometheus
+---
 
-📸 СКРИНШОТ: http://localhost:9090/targets
+✅ Проверить метрики в Grafana
+1.	Перейти в Dashboards
+2.	Нажать New → New dashboard
+3.	Add new panel
+4.	В поле запроса вставить, например:
 
-⸻
+rate(ClickHouseProfileEvents_Query[1m])
 
-## 4. Настройка Grafana
+5.	Нажать Apply
 
-Импорт дашбордов:
-	•	Node Exporter → ID 11074
-	•	ClickHouse → ID 14192
+---
 
-📸 СКРИНШОТ: Grafana dashboard
+✅ Альтернатива (импорт готового дашборда)
+1.	Dashboards → Import
+2.	Ввести ID:
 
-⸻
+* Node Exporter → ID 11074
+* ClickHouse → ID 14192
+
+3.	Выбрать Prometheus datasource
+4.	Import
+
+![📸 СКРИНШОТ: Grafana dashboard]()
+
+---
 
 # Дополнительное задание (логирование)
 
-1. Таблица логов Engine=Null
+### 1. Таблица логов Engine=Null
 
+```sql
 CREATE TABLE logs_null
 (
     event_time DateTime,
     message String
 ) ENGINE = Null;
+```
+---
 
+### 2. Реплицируемая таблица
 
-⸻
-
-2. Реплицируемая таблица
-
+```sql
 CREATE TABLE logs_repl
 (
     event_time DateTime,
@@ -394,19 +407,19 @@ ENGINE = ReplicatedMergeTree(
 '{replica}'
 )
 ORDER BY event_time;
+```
 
+---
 
-⸻
-
-3. Materialized View
+### 3. Materialized View
 
 CREATE MATERIALIZED VIEW mv_logs TO logs_repl AS
 SELECT *, hostName() FROM logs_null;
 
 
-⸻
+---
 
-4. Проверка репликации
+### 4. Проверка репликации
 
 INSERT INTO logs_null VALUES (now(), 'test log');
 
@@ -414,9 +427,9 @@ SELECT * FROM logs_repl;
 
 📸 СКРИНШОТ: запись появилась на всех репликах
 
-⸻
+---
 
-Итог
+Итоги
 
 Настроен полный мониторинг:
 
