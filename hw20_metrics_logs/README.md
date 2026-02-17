@@ -13,7 +13,7 @@
 
 ### Вариант 2 — внешний мониторинг
 1. Развернуть Prometheus / Grafana
-2. Настроить сбор метрик ClickHouse и OS
+2. Настроить push/pull метрик
 3. Показать дашборд со сбором метрик
 
 ### Дополнительное задание (*)
@@ -21,7 +21,7 @@
 
 ---
 
-# Архитектура кластера
+### Архитектура кластера
 
 Используемый кластер:
 - 1 shard
@@ -33,7 +33,7 @@
 
 ---
 
-
+# Вариант 1 — встроенный мониторинг ClickHouse
 ## Шаг 1. Штатные метрики ClickHouse (Advanced Dashboard)
 
 ClickHouse по умолчанию предоставляет встроенный Web Dashboard:
@@ -71,10 +71,10 @@ http://:8123/dashboard
 
 ---
 
-# Шаг 2. Кастомные метрики
+## Шаг 2. Кастомные метрики
 
 
-## 2.1 Создание базы и таблицы для кастомных dashboard
+### 2.1 Создание базы и таблицы для кастомных dashboard
 
 ```sql
 CREATE DATABASE IF NOT EXISTS custom;
@@ -91,9 +91,9 @@ ORDER BY tuple();
 
 ---
 
-## 2.2 Добавление кастомных метрик
+### 2.2 Добавление кастомных метрик
 
-### 1. Merge Throughput (rows/sec) - Скорость слияния строк (строк в секунду)
+#### 1. Merge Throughput (rows/sec) - Скорость слияния строк (строк в секунду)
 
 ```sql
 INSERT INTO custom.dashboards VALUES
@@ -113,7 +113,7 @@ ORDER BY t
 ```
 ---
 
-### 2. Active Parts Count - Количество активных партов
+#### 2. Active Parts Count - Количество активных партов
 
 ```sql
 INSERT INTO custom.dashboards VALUES
@@ -133,7 +133,7 @@ WITH FILL STEP {rounding:UInt32}
 ```
 ---
 
-### 3. Insert Throughput (rows/sec) — Скорость вставки строк (строк в секунду)
+#### 3. Insert Throughput (rows/sec) — Скорость вставки строк (строк в секунду)
 
 ```sql
 INSERT INTO custom.dashboards VALUES
@@ -153,7 +153,7 @@ ORDER BY t
 ```
 ---
 
-## 2.3 Отображение кастомных метрик
+### 2.3 Отображение кастомных метрик
 
 Для загрузки кастомных метрик использую:
 ```sql
@@ -173,31 +173,130 @@ WHERE dashboard = 'Custom';
 
 ---
 
-Часть 2 — Внешний мониторинг (Prometheus + Grafana)
+# Вариант 2 — Внешний мониторинг (Prometheus + Grafana)
 
-1. Включаем экспорт метрик ClickHouse
+## Шаг 1 Установка Prometheus и Grafana в контейнерах Docker
 
-Файл /etc/clickhouse-server/config.xml
+Создаю папки для контейнеров мониторинга
 
-<prometheus>
-    <endpoint>/metrics</endpoint>
-    <port>9363</port>
-    <metrics>true</metrics>
-    <events>true</events>
-    <asynchronous_metrics>true</asynchronous_metrics>
-</prometheus>
+```bash
+mkdir -p ~/monitoring/prometheus
+mkdir -p ~/monitoring/prometheus/data
+mkdir -p ~/monitoring/grafana
+mkdir -p ~/monitoring/grafana/data
+```
+Права на каталоги
+```bash
+sudo chown -R 65534:65534 ~/monitoring/prometheus/data
+sudo chown -R 472:472 ~/monitoring/grafana/data
+```
 
+Устанавливаю контейнеры
+
+#### Prometheus (docker-compose)
+```yml
+version: '3.8'
+
+services:
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    networks:
+      - infra-net
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./data:/prometheus
+    ports:
+      - "9090:9090"
+
+networks:
+  infra-net:
+    external: true
+```
+
+#### prometheus.yml
+
+```yml
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: clickhouse
+    static_configs:
+      - targets: ['ch1:9363','ch2:9363','ch3:9363','ch4:9363']
+
+  - job_name: node
+    static_configs:
+      - targets: ['ch1:9100']
+```
+
+---
+
+#### Grafana (docker-compose)
+
+```yml
+version: '3.8'
+
+services:
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    networks:
+      - infra-net
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/var/lib/grafana
+
+networks:
+  infra-net:
+    external: true
+```
+
+Проверка в браузере
+
+http://IP:9090
+http://IP:3000
+Grafana по умолчанию логин/пароль admin/admin, новый пароль admin123
+
+## Шаг 2. Включаю экспорт метрик ClickHouse
+
+В файл /etc/clickhouse-server/config.xml добавляю
+
+```xml
+<clickhouse>
+    <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>9363</port>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+    </prometheus>
+</clickhouse>
+```
+
+
+```bash
 sudo systemctl restart clickhouse-server
+```
+Проверка - задаю в web интерфейсе Prometheus запросы для проверки:
 
-Проверка:
+→ Graph → вставить запрос → Execute → Graph
 
-curl http://localhost:9363/metrics
+✅ Количество выполняемых запросов в секунду
 
-📸 СКРИНШОТ: метрики открываются
+`rate(ClickHouseProfileEvents_Query[1m])`
 
-⸻
+✅ Количество активных партов
 
-2. Установка Node Exporter
+`ClickHouseMetrics_PartsActive`
+
+![📸 СКРИНШОТ: метрики в Prometheus]()
+
+---
+
+## Шаг 2. Устанавливаю Node Exporter
 
 sudo useradd -rs /bin/false node_exporter
 wget https://github.com/prometheus/node_exporter/releases/latest/download/node_exporter-1.9.0.linux-amd64.tar.gz
@@ -226,7 +325,7 @@ sudo systemctl start node_exporter
 
 ⸻
 
-3. Настройка Prometheus
+## Шаг 3. Настройка Prometheus
 
 Файл /etc/prometheus/prometheus.yml
 
@@ -246,7 +345,7 @@ sudo systemctl restart prometheus
 
 ⸻
 
-4. Grafana
+## 4. Настройка Grafana
 
 Импорт дашбордов:
 	•	Node Exporter → ID 11074
@@ -256,7 +355,7 @@ sudo systemctl restart prometheus
 
 ⸻
 
-Часть 3 — Доп. задание (логирование)
+# Дополнительное задание (логирование)
 
 1. Таблица логов Engine=Null
 
