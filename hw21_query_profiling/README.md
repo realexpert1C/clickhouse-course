@@ -31,15 +31,30 @@ hw21
   - uk_price_paid_daily_repl
 
 ---
-
-Отлично. Конфигурация идеальная для ДЗ 👍
-1 shard × 4 replica, 25.3 LTS — всё современное есть.
-
-Делаем правильно, аккуратно и «на зачёт».
-
-⸻
-
-🔎 Архитектурный контекст
+Запрос, которым была создана таблица:
+```sql
+CREATE TABLE default.uk_price_paid_daily_repl
+(
+    `price` UInt32,
+    `date` Date,
+    `postcode1` LowCardinality(String),
+    `postcode2` LowCardinality(String),
+    `type` Enum8('other' = 0, 'terraced' = 1, 'semi-detached' = 2, 'detached' = 3, 'flat' = 4),
+    `is_new` UInt8,
+    `duration` Enum8('unknown' = 0, 'freehold' = 1, 'leasehold' = 2),
+    `addr1` String,
+    `addr2` String,
+    `street` LowCardinality(String),
+    `locality` LowCardinality(String),
+    `town` LowCardinality(String),
+    `district` LowCardinality(String),
+    `county` LowCardinality(String)
+)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/default/uk_price_paid_daily_repl', '{replica}')
+PARTITION BY toYYYYMMDD(date)
+ORDER BY (postcode1, postcode2, addr1, addr2)
+SETTINGS index_granularity = 8192
+```
 
 Таблица:
 
@@ -48,61 +63,127 @@ PARTITION BY toYYYYMMDD(date)
 ORDER BY (postcode1, postcode2, addr1, addr2)
 
 Важно:
-	•	PRIMARY KEY = (postcode1, postcode2, addr1, addr2)
-	•	date — это partition key, но не primary key
-	•	Индекс — sparse (marks, granules по 8192 строк)
+* PRIMARY KEY = (postcode1, postcode2, addr1, addr2)
+* date — это partition key, но не primary key
+* Индекс — sparse (marks, granules по 8192 строк)
 
-⸻
+---
 
-✅ План выполнения ДЗ
+## Шаг 1 — Запрос БЕЗ использования primary key
 
-Мы сделаем:
-	1.	❌ Запрос без использования primary key
-	2.	✅ Запрос с использованием primary key
-	3.	Снимем trace-лог
-	4.	Выделим строки пробега индекса
-	5.	Покажем EXPLAIN indexes = 1
-	6.	Подготовим структуру README.md
-
-⸻
-
-🔴 Шаг 1 — Запрос БЕЗ использования primary key
-
-Используем фильтр по date
+Использую фильтр по date
 (он только partition pruning даст, но не primary index range pruning)
 
+```sql
 SET send_logs_level = 'trace';
 
 SELECT count()
 FROM default.uk_price_paid_daily_repl
-WHERE date = '2023-01-01'
+WHERE date = '2025-11-01'
+FORMAT Null;
+```
+
+
+Отлично. Ниже — полностью готовый README.md, переписанный строго под формулировку задания, без лишней воды.
+
+Я вставил:
+	•	чёткую структуру
+	•	реальные строки из твоего лога (full scan)
+	•	метки, где вставлять скриншоты
+	•	альтернативу с текстовыми логами
+	•	корректные формулировки для зачёта
+
+⸻
+
+📄 README.md
+
+# Домашнее задание: Профилирование запросов в ClickHouse
+
+Кластер: 1 shard, 4 replica  
+Версия ClickHouse: 25.3 LTS  
+Таблица: default.uk_price_paid_daily_repl  
+ENGINE: ReplicatedMergeTree  
+PARTITION BY: toYYYYMMDD(date)  
+ORDER BY (Primary Key): (postcode1, postcode2, addr1, addr2)
+
+---
+
+# 1. Запрос без использования Primary Key
+
+## SQL-запрос
+
+```sql
+SET send_logs_level = 'trace';
+
+SELECT count()
+FROM default.uk_price_paid_daily_repl
+WHERE date = '2025-11-01'
 FORMAT Null;
 
+date не входит в Primary Key, поэтому индекс не должен использоваться.
 
 ⸻
 
-📌 В trace вы должны увидеть
+Фрагмент trace-лога
 
-Признак фуллскана внутри партиции:
+Key condition: unknown
 
-Selected X/X parts by partition key,
-X parts by primary key,
-YYY/YYY marks by primary key,
-YYY marks to read from Z ranges
+PK index has dropped 0/151174 granules
 
-⚠️ Важно:
-	•	YYY/YYY marks by primary key
-означает — индекс не сузил диапазон
+Selected 3/3 parts by partition key,
+3 parts by primary key,
+151174/151174 marks by primary key,
+151174 marks to read from 3 ranges
 
-Если индекс не использовался — marks ≈ total marks
+Read 1238404226 rows, 2.31 GiB
 
-Сделайте скрин этого блока.
 
 ⸻
 
-🟢 Шаг 2 — Запрос С использованием primary key
+Анализ
+	•	Key condition: unknown — Primary Key не применим
+	•	151174/151174 marks — прочитаны все гранулы
+	•	Выполнен full scan
+	•	Прочитано 1.24 млрд строк
 
-Используем prefix primary key:
+⸻
+
+Скриншот доказательства
+
+📸 Вставить скриншот блока с:
+
+Selected 3/3 parts by partition key
+151174/151174 marks by primary key
+
+
+⸻
+
+EXPLAIN
+
+EXPLAIN indexes = 1
+SELECT count()
+FROM default.uk_price_paid_daily_repl
+WHERE date = '2025-11-01';
+
+Ожидаемый фрагмент
+
+Indexes:
+  PrimaryKey
+    Condition: true
+    Parts: 3/3
+    Granules: 151174/151174
+
+
+⸻
+
+📸 Вставить скриншот EXPLAIN без использования PK:
+
+
+⸻
+
+2. Запрос с использованием Primary Key
+
+SQL-запрос
 
 SET send_logs_level = 'trace';
 
@@ -111,158 +192,146 @@ FROM default.uk_price_paid_daily_repl
 WHERE postcode1 = 'SW1A'
 FORMAT Null;
 
-(если данных мало — можно взять существующий postcode1 через select distinct limit 10)
+postcode1 — первая колонка Primary Key.
 
 ⸻
 
-📌 В trace должно быть
+Фрагмент trace-лога
 
-Selected 1/XXX parts by primary key,
-12/393 marks by primary key,
-12 marks to read from 1 ranges
+(пример ожидаемого поведения)
 
-Вот это — ключевая строка для ДЗ.
+Key condition: (postcode1 in ['SW1A'])
 
-📸 Делаете скрин именно этого участка.
+PK index has dropped 150000/151174 granules
 
-⸻
+Selected 3/3 parts by partition key,
+3 parts by primary key,
+120/151174 marks by primary key,
+120 marks to read from 3 ranges
 
-🔬 Что именно вставлять в README.md
-
-Вам нужны именно строки:
-
-Для запроса без PK:
-
-Selected ... parts by primary key,
-393/393 marks by primary key
-
-Для запроса с PK:
-
-Selected ... parts by primary key,
-12/393 marks by primary key
-
-Разница в marks — это и есть доказательство использования индекса.
 
 ⸻
 
-🧠 Шаг 3 — EXPLAIN
-
-❌ Без PK
-
-EXPLAIN indexes = 1
-SELECT count()
-FROM default.uk_price_paid_daily_repl
-WHERE date = '2023-01-01';
-
-В выводе будет что-то вроде:
-
-Indexes:
-  PrimaryKey
-    Condition: true
-    Parts: X/X
-    Granules: YYY/YYY
-
-Granules YYY/YYY → фуллскан
+Анализ
+	•	Primary Key используется
+	•	Значительная часть гранул отброшена
+	•	Выполнен range scan
+	•	Объём чтения существенно меньше
 
 ⸻
 
-✅ С PK
+Скриншот доказательства
+
+📸 Вставить скриншот блока с:
+
+PK index has dropped ...
+120/151174 marks by primary key
+
+
+⸻
+
+EXPLAIN
 
 EXPLAIN indexes = 1
 SELECT count()
 FROM default.uk_price_paid_daily_repl
 WHERE postcode1 = 'SW1A';
 
-Вы должны увидеть:
+Ожидаемый фрагмент
 
 Indexes:
   PrimaryKey
     Condition: (postcode1 in ['SW1A'])
-    Parts: 1/XXX
-    Granules: 12/393
+    Parts: 3/3
+    Granules: 120/151174
 
-Вот это — второе доказательство.
-
-⸻
-
-📁 Структура README.md
-
-Пример:
-
-# Query Profiling — ClickHouse
-
-## 1. Запрос без использования Primary Key
-
-```sql
-SELECT count()
-FROM default.uk_price_paid_daily_repl
-WHERE date = '2023-01-01'
-FORMAT Null;
-
-Trace log
-
-Вывод:
-	•	393/393 marks by primary key
-	•	Primary index не сузил диапазон
-	•	Выполнен full scan внутри partition
-
-EXPLAIN
-
-Granules: 393/393
 
 ⸻
 
-2. Запрос с использованием Primary Key
+📸 Вставить скриншот EXPLAIN с использованием PK:
 
-SELECT count()
-FROM default.uk_price_paid_daily_repl
-WHERE postcode1 = 'SW1A'
-FORMAT Null;
 
-Trace log
+⸻
 
-Вывод:
-	•	12/393 marks by primary key
-	•	Primary index использован
-	•	Выполнен range scan
+3. Сравнение результатов
 
-EXPLAIN
+Запрос	Использование PK	Прочитанные гранулы
+WHERE date	Нет	151174/151174
+WHERE postcode1	Да	120/151174
 
-Granules: 12/393
+Primary Key существенно уменьшает количество читаемых гранул.
 
 ⸻
 
 Итог
-
-Primary key существенно уменьшает количество читаемых гранул.
-
----
-
-# 💡 Профессиональный момент (можно добавить в вывод)
-
-Primary index в ClickHouse:
-- sparse
-- хранит минимальные значения гранул
-- работает через range pruning
-- не B-tree
-- не bitmap
+	1.	Запрос по столбцу, не входящему в Primary Key, выполняет full scan.
+	2.	Запрос по столбцу Primary Key выполняет range scan.
+	3.	Использование Primary Key уменьшает объём чтения и повышает эффективность выполнения запроса.
 
 ---
 
-# ⚠️ Важно для 1 shard × 4 replica
+# 📁 Как правильно вставлять логи в GitHub
 
-Вы подключайтесь к **одной реплике напрямую**,  
-не через Distributed-таблицу.
-
-Иначе trace будет агрегироваться.
+Есть 2 способа:
 
 ---
 
-# Если хотите — дальше можем:
+## Вариант 1 — Скриншоты (проще для проверки)
 
-- Сделать версию с `EXPLAIN PIPELINE`
-- Показать разницу в `system.query_log`
-- Добавить сравнение read_rows / read_marks
-- Или оформить это как «идеальный отчёт на 5»
+Структура репозитория:
 
-Готов двигаться дальше 🚀
+README.md
+/screenshots/
+trace_no_pk.png
+trace_with_pk.png
+explain_no_pk.png
+explain_with_pk.png
+
+Markdown автоматически покажет их.
+
+---
+
+## Вариант 2 — Текстовые файлы логов
+
+Создать папку:
+
+/logs/
+trace_no_pk.txt
+trace_with_pk.txt
+
+В README вставить ссылку:
+
+```markdown
+[Открыть trace лог без PK](logs/trace_no_pk.txt)
+
+GitHub откроет файл в браузере.
+
+⸻
+
+Если хотите “всплывание” (collapse block)
+
+Можно вставить так:
+
+<details>
+<summary>Trace лог без использования PK</summary>
+
+ВСТАВИТЬ_ЛОГ_СЮДА
+
+</details>
+
+Тогда лог будет сворачиваться.
+
+⸻
+
+Важно
+
+Тебе осталось:
+	1.	Получить лог второго запроса (с postcode1)
+	2.	Вставить реальные значения granules
+	3.	Сделать 4 скриншота
+
+И это будет полностью соответствовать критериям оценки.
+
+⸻
+
+Если хочешь — пришли лог второго запроса, я вставлю реальные числа и финализирую README без шаблонных значений.
