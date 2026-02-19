@@ -109,7 +109,7 @@ Read 1238404226 rows, 2.31 GiB
 * Выполнен full scan
 * Прочитано 1.24 млрд строк
 
-![Скриншот лога без PK]()
+![Скриншот лога без PK](https://github.com/realexpert1C/clickhouse-course/blob/5f022fca9a6394ad2c945fb1a08f5e354a624266/images/hw21_no_pk.png)
 
 
 EXPLAIN
@@ -129,7 +129,7 @@ Indexes:
     Granules: 151174/151174
 ```
 
-![📸 EXPLAIN без использования PK:]()
+![📸 EXPLAIN без использования PK:](https://github.com/realexpert1C/clickhouse-course/blob/5f022fca9a6394ad2c945fb1a08f5e354a624266/images/hw21_no_pk_explain.png)
 
 ---
 
@@ -148,7 +148,7 @@ postcode1 — первая колонка Primary Key.
 
 Фрагмент trace-лога
 
-![Скриншот лога c PK]()
+![Скриншот лога c PK](https://github.com/realexpert1C/clickhouse-course/blob/5f022fca9a6394ad2c945fb1a08f5e354a624266/images/hw21_yes_pk.png)
 
 Анализ
 
@@ -180,7 +180,7 @@ PrimaryKey
 
 ```
 
-![📸 EXPLAIN c использованием PK:]()
+![📸 EXPLAIN c использованием PK:](https://github.com/realexpert1C/clickhouse-course/blob/5f022fca9a6394ad2c945fb1a08f5e354a624266/images/hw21_yes_pk_explain.png)
 
 ---
 
