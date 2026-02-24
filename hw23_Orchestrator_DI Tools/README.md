@@ -510,7 +510,7 @@ with DAG(
     truncate_task >> load_task
 ```
 
-![📸 Скриншот №4]()
+![📸 Скриншот №4](https://github.com/realexpert1C/clickhouse-course/blob/a28ae67bc5661d60ee4b913a3aa308ee0a0307a4/images/hw23_dag_success.png)
 
 DAG в статусе Success
 
@@ -525,7 +525,7 @@ ORDER BY load_ts DESC
 LIMIT 10;
 ```
 
-![📸 Скриншот №5]()
+![📸 Скриншот №5](https://github.com/realexpert1C/clickhouse-course/blob/a28ae67bc5661d60ee4b913a3aa308ee0a0307a4/images/hw23_check_load.png)
 
 Данные успешно загружены в ClickHouse
 
@@ -549,7 +549,7 @@ GROUP BY host
 ORDER BY host;
 ```
 
-![📸 Скриншот №6]()
+![📸 Скриншот №6](https://github.com/realexpert1C/clickhouse-course/blob/a28ae67bc5661d60ee4b913a3aa308ee0a0307a4/images/hw23_check_rpl.png)
 
 Данные присутствуют на всех 4 репликах, количество строк и размер одинаковы
 
