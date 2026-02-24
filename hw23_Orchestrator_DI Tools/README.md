@@ -357,7 +357,7 @@ http://<IP_сервера>:8080
 - admin123
 
 
-![📸 Скриншот №1]()
+![📸 Скриншот №1](https://github.com/realexpert1C/clickhouse-course/blob/8eac658f9f825a4aa72f44c7df277ba300925450/images/hw23_airflow_start.png)
 
 Airflow Web UI после входа
 
@@ -370,6 +370,7 @@ Airflow Web UI после входа
 ```sql
 CREATE USER IF NOT EXISTS etl_user IDENTIFIED BY 'etl_password123' ON CLUSTER replicated_cluster;
 GRANT INSERT, SELECT, ALTER, TRUNCATE ON etl.* TO etl_user ON CLUSTER replicated_cluster;
+GRANT REMOTE ON *.* TO etl_user ON CLUSTER replicated_cluster;
 ```
 
 ---
@@ -396,7 +397,7 @@ ENGINE = ReplicatedMergeTree(
 ORDER BY id;
 ```
 
-![📸 Скриншот №2]()
+![📸 Скриншот №2](https://github.com/realexpert1C/clickhouse-course/blob/8eac658f9f825a4aa72f44c7df277ba300925450/images/hw23_create_tbl.png)
 
 Результат выполнения CREATE TABLE
 
@@ -413,7 +414,7 @@ Schema: etl
 Login: etl_user
 Password: etl_password123
 
-![📸 Скриншот №3]()
+![📸 Скриншот №3](https://github.com/realexpert1C/clickhouse-course/blob/8eac658f9f825a4aa72f44c7df277ba300925450/images/hw23_ch_conn.png)
 
 ---
 
@@ -534,15 +535,23 @@ LIMIT 10;
 
 ```sql
 SELECT
-    hostName(),
-    count()
-FROM clusterAllReplicas('replicated_cluster', etl.crypto_prices)
-GROUP BY hostName();
+    hostName() AS host,
+    sum(rows) AS total_rows,
+    round(sum(bytes_on_disk) / 1024 / 1024, 2) AS size_mb
+FROM clusterAllReplicas(
+        'replicated_cluster',
+        system.parts
+)
+WHERE database = 'etl'
+  AND table = 'crypto_prices'
+  AND active
+GROUP BY host
+ORDER BY host;
 ```
 
 ![📸 Скриншот №6]()
 
-Данные присутствуют на всех 4 репликах
+Данные присутствуют на всех 4 репликах, количество строк и размер одинаковы
 
 ---
 
