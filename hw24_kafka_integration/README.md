@@ -141,7 +141,7 @@ segment.ms=3600000
 Ротация сегментов раз в 1 час
 (удобно для лабораторных экспериментов).
 
-![📸 Скриншот 1: список топиков (kafka-topics --list)]()
+![📸 Скриншот 1: список топиков (kafka-topics --list)](https://github.com/realexpert1C/clickhouse-course/blob/13b0d8d72e4474a6dcb90651b5c1f3ad327ff64e/images/hw24_kafka_topic_list.png)
 
 ---
 
@@ -154,7 +154,7 @@ Kafka Engine используется на уровне таблицы.
 ```bash
 docker exec -it ch1 bash -c "</dev/tcp/kafka/9092" && echo OK
 ```
-![📸 Скриншот 2: OK kafka из ch1]()
+![📸 Скриншот 2: OK kafka из ch1](https://github.com/realexpert1C/clickhouse-course/blob/13b0d8d72e4474a6dcb90651b5c1f3ad327ff64e/images/hw24_conn_check.png)
 
 __Как ClickHouse читает Kafka__
 
@@ -212,7 +212,7 @@ WHERE database = 'default' AND name LIKE 'events%'
 ORDER BY host, name;
 ```
 
-![📸 Скриншот 3: SHOW TABLES на кластере]()
+![📸 Скриншот 3: SHOW TABLES на кластере](https://github.com/realexpert1C/clickhouse-course/blob/13b0d8d72e4474a6dcb90651b5c1f3ad327ff64e/images/hw24_check_tbls.png)
 
 ---
 
@@ -235,7 +235,7 @@ SETTINGS
     kafka_num_consumers = 4,
     kafka_skip_broken_messages = 1;
 ```
-![📸 Скриншот 4: DESCRIBE TABLE events_kafka]()
+![📸 Скриншот 4: DESCRIBE TABLE events_kafka](https://github.com/realexpert1C/clickhouse-course/blob/13b0d8d72e4474a6dcb90651b5c1f3ad327ff64e/images/hw24_desc_events_kafka.png)
 
 Разбор параметров
 
@@ -256,7 +256,7 @@ SETTINGS
 
 Если Materialized View падает — offset не коммитится.
 
-Это сделано для обепечения at-least-once доставку.
+Это сделано для обепечения at-least-once доставки.
 
 ---
 
@@ -274,7 +274,7 @@ SELECT
 FROM default.events_kafka;
 ```
 
-![📸 Скриншот 5: SHOW CREATE TABLE events_mv]()
+![📸 Скриншот 5: SHOW CREATE TABLE events_mv](https://github.com/realexpert1C/clickhouse-course/blob/13b0d8d72e4474a6dcb90651b5c1f3ad327ff64e/images/hw24_show_events_mv.png)
 
 Как это работает:
 1.	Kafka Engine получает пачку сообщений
@@ -303,7 +303,7 @@ docker exec -it kafka kafka-console-producer \
 {"event_id":2,"user_id":102,"event_type":"view","event_time":"2024-01-01 10:01:00"}
 {"event_id":3,"user_id":103,"event_type":"purchase","event_time":"2024-01-01 10:02:00"}
 ```
-![📸 Скриншот 6: отправка сообщений в Kafka]()
+![📸 Скриншот 6: отправка сообщений в Kafka](https://github.com/realexpert1C/clickhouse-course/blob/13b0d8d72e4474a6dcb90651b5c1f3ad327ff64e/images/hw24_events_in_kafka.png)
 
 ---
 
@@ -324,7 +324,7 @@ ORDER BY event_time;
 | 2        | 102      | view       | 2024-01-01 10:01:00  |
 | 3        | 103      | purchase   | 2024-01-01 10:02:00  |
 
-![📸 Скриншот 7: результат SELECT из events_dist]()
+![📸 Скриншот 7: результат SELECT из events_dist](https://github.com/realexpert1C/clickhouse-course/blob/13b0d8d72e4474a6dcb90651b5c1f3ad327ff64e/images/hw24_check_events_dist.png)
 
 ---
 
@@ -346,11 +346,11 @@ offset = 0 (lag отсутствует)
 
 Partition 2
 
-PARTITION        2
-CURRENT-OFFSET   5
-LOG-END-OFFSET   5
-LAG              0
-CONSUMER-ID      ClickHouse-ch1-...
+- PARTITION        2
+- CURRENT-OFFSET   5
+- LOG-END-OFFSET   5
+- LAG              0
+- CONSUMER-ID      ClickHouse-ch1-...
 
 Это означает:
 
