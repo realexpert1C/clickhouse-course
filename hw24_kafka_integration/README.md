@@ -339,7 +339,7 @@ docker exec -it kafka kafka-consumer-groups \
   --group clickhouse_consumer_group
 ```
 
-![📸 Скриншот 8: offset = 0 (lag отсутствует)]()
+![📸 Скриншот 8: offset = 0 (lag отсутствует)](https://github.com/realexpert1C/clickhouse-course/blob/5bd514496084c8050fe9ac2d7055474b587eb52e/images/hw24_check_offset_2.png)
 offset = 0 (lag отсутствует)
 
 📌 Что видим
@@ -392,7 +392,7 @@ ORDER BY event_time;
 ```
 Данные добавились
 
-![📸 Скриншот 9: INSERT из CH успешен]()
+![📸 Скриншот 9: INSERT из CH успешен](https://github.com/realexpert1C/clickhouse-course/blob/5bd514496084c8050fe9ac2d7055474b587eb52e/images/hw24_check_load_from_ch.png)
 
 ---
 
@@ -553,7 +553,7 @@ docker exec -it kafka kafka-console-producer \
 2.	Активировать DAG kafka_to_clickhouse_streaming
 3.	Запустить вручную
 
-![📸 Скриншот: запуск DAG в Airflow UI]()
+![📸 Скриншот: запуск DAG в Airflow UI](https://github.com/realexpert1C/clickhouse-course/blob/5bd514496084c8050fe9ac2d7055474b587eb52e/images/hw24_dag.png)
 
 Проверка результата
 
@@ -563,7 +563,7 @@ SELECT *
 FROM default.events_dist
 ORDER BY event_time;
 ```
-![📸 Скриншот: результат SELECT из events_dist]()
+![📸 Скриншот: результат SELECT из events_dist](https://github.com/realexpert1C/clickhouse-course/blob/5bd514496084c8050fe9ac2d7055474b587eb52e/images/hw24_dag_select.png)
 Данные успешно добавились
 
 
