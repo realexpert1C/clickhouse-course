@@ -184,7 +184,7 @@ Data → Datasets → Add Dataset
 - demo.v_binance_minute
 - demo.v_weather_hourly
 
-![Скриншот 4: Список датасетов]()
+![Скриншот 4: Список датасетов](https://github.com/realexpert1C/clickhouse-course/blob/2e3083e0833871f71150f73c6c78bbc76bd37f3e/images/hw25_datasets_list_v2.png)
 
 ---
 
