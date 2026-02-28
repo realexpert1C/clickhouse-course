@@ -1,17 +1,3 @@
-hw25
-Да, задача полностью понятна ✅
-
-Мы делаем:
-	1.	Разворачиваем Apache Superset
-	2.	Подключаем его к ClickHouse
-	3.	Готовим витрины (желательно)
-	4.	Строим дашборд из 5 визуализаций
-	5.	Всё это сразу проектируем так, чтобы потом переиспользовать в финальной работе
-
-Ниже — готовый README.md для GitHub с пометками под скриншоты.
-
-⸻
-
 # Домашнее задание 25 - Визуализация данных в Apache Superset
 
 ### Цель работы
@@ -100,7 +86,7 @@ Superset доступен по адресу:
 
 http://<SERVER_IP>:8088
 
-![📸 Скриншот 1: Страница логина Superset]()
+![📸 Скриншот 1: Страница логина Superset](https://github.com/realexpert1C/clickhouse-course/blob/e68c0a695a816bd4183230124d07f20e1cd5a422/images/hw25_superset_start.png)
 
 ---
 
@@ -116,7 +102,7 @@ clickhouse+http://default:default123@ch1:8123/demo
 
 или 
 
-clickhouse+http://default:default123@:8123/demo
+clickhouse+http://default:default123@172.21.0.3:8123/demo
 
 С первого раза подключение не успешно, потому что в контейнере Superset не установлен ClickHouse driver + SQLAlchemy dialect
 
@@ -146,7 +132,7 @@ docker compose build --no-cache
 docker compose up -d
 ```
 И снова тестирую подключение - успешно!
-![📸 Скриншот 2: Успешное подключение к ClickHouse]()
+![📸 Скриншот 2: Успешное подключение к ClickHouse](https://github.com/realexpert1C/clickhouse-course/blob/e68c0a695a816bd4183230124d07f20e1cd5a422/images/hw25_ch_connect.png)
 
 ---
 
@@ -183,8 +169,8 @@ SELECT
 FROM demo.weather_hourly
 ORDER BY event_time;
 ```
-![📸 Скриншот 3: Проверка витрин через SELECT]()
-![📸 Скриншот 3-1: Проверка витрин через SELECT]()
+![📸 Скриншот 3: Проверка витрин через SELECT](https://github.com/realexpert1C/clickhouse-course/blob/e68c0a695a816bd4183230124d07f20e1cd5a422/images/hw25_crypto_view.png)
+![📸 Скриншот 3-1: Проверка витрин через SELECT](https://github.com/realexpert1C/clickhouse-course/blob/e68c0a695a816bd4183230124d07f20e1cd5a422/images/hw25_weth_view.png)
 
 ---
 
