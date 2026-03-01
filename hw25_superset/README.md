@@ -236,7 +236,7 @@ __🌧 Визуализация 5 — Relative humidity__
 Метрика: avg(relative_humidity_2m)
 
 
-![📸 Скриншот 5: Полный дашборд с 5 визуализациями]()
+![📸 Скриншот 5: Полный дашборд с 5 визуализациями](https://github.com/realexpert1C/clickhouse-course/blob/c29790747aa96f3e875f06cccd56941ce9f961f7/images/hw25_dashboards.png)
 
 ---
 
