@@ -1,30 +1,24 @@
-Отлично. Поздравляю с высокой оценкой по 25-й 👏
-Теперь делаем 26-ю строго, технически корректно и без «воды».
+# Домашнее задание 26 - Интеграция ClickHouse с PostgreSQL
 
-⸻
+Цели задания:
+1.	Установка PostgreSQL в Docker (в уже существующей сети infra-net)
+2.	Создание тестовой таблицы
+3.	Запрос данных из PostgresQL c помощью функции postgres()
+4. На стороне ClickHouse создание таблицы для интеграции с PostgreSQL через движок Postgres.
+5. На стороне ClickHouse создание базы данных для интеграции с PostgreSQL.
 
-Домашняя работа №26
+---
 
-Интеграция ClickHouse с PostgreSQL
+## Шаг 1. Установка PostgreSQL (Docker)
 
-Мы сделаем:
-	1.	PostgreSQL в Docker (в твоей infra)
-	2.	Тестовый датасет
-	3.	Запрос через функцию postgres()
-	4.	Таблицу на движке PostgreSQL
-	5.	Базу данных на движке PostgreSQL
-
-⸻
-
-Шаг 1. PostgreSQL (Docker)
-
-Создаём каталог:
-
+Создаю каталог:
+```bash
 mkdir ~/infra/postgres-ch
+mkdir ~/infra/postgres-ch/pg_data
 cd ~/infra/postgres-ch
-
-docker-compose.yaml
-
+```
+Файл `docker-compose.yaml`:
+```yml
 version: "3.8"
 
 services:
@@ -45,22 +39,21 @@ services:
 networks:
   infra-net:
     external: true
-
+```
 Запуск:
-
+```bash
 docker compose up -d
+```
+---
 
+## Шаг 2. Тестовый датасет в PostgreSQL
 
-⸻
-
-Шаг 2. Тестовый датасет в PostgreSQL
-
-Подключаемся:
-
+Подключаюсь:
+```bash
 docker exec -it postgres_ch psql -U pguser -d demo_pg
-
-Создаём таблицу:
-
+```
+Создаю таблицу:
+```sql
 CREATE TABLE trades_pg (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20),
@@ -68,25 +61,28 @@ CREATE TABLE trades_pg (
     quantity NUMERIC(18,8),
     trade_time TIMESTAMP
 );
+```
+![Скриншот 1 SHOW CREATE TABLE в PostgreSQL]()
 
-Заполняем:
-
+Заполняю:
+```sql
 INSERT INTO trades_pg (symbol, price, quantity, trade_time) VALUES
 ('BTCUSDT', 30000.12, 0.5, '2024-01-01 10:00:00'),
 ('BTCUSDT', 30010.45, 0.3, '2024-01-01 10:01:00'),
 ('ETHUSDT', 2000.10, 1.2, '2024-01-01 10:02:00');
-
+```
 Проверка:
-
+```sql
 SELECT * FROM trades_pg;
+```
+![Скриншот2 SELECT после INSERT]()
 
+---
 
-⸻
-
-Шаг 3. Запрос из ClickHouse через функцию postgres()
+## Шаг 3. Запрос из ClickHouse через функцию postgres()
 
 Теперь из ClickHouse:
-
+```sql
 SELECT *
 FROM postgres(
     'postgres_ch:5432',
@@ -95,15 +91,17 @@ FROM postgres(
     'pguser',
     'pgpassword'
 );
-
+```
 Ожидаемый результат — 3 строки.
 
-⸻
+![Скриншот 3 SELECT через postgres]()
 
-Шаг 4. Таблица в ClickHouse через ENGINE = PostgreSQL
+---
 
-Создаём таблицу:
+## Шаг 4. Таблица в ClickHouse через ENGINE = PostgreSQL
 
+Создаю таблицу в Clickhouse:
+```sql
 CREATE TABLE demo.trades_pg_engine
 (
     id UInt32,
@@ -119,18 +117,19 @@ ENGINE = PostgreSQL(
     'pguser',
     'pgpassword'
 );
-
+```
 Проверка:
-
+```sql
 SELECT * FROM demo.trades_pg_engine;
+```
+![Скриншот 4 SELECT * FROM demo.trades_pg_engine]()
 
+---
 
-⸻
+## Шаг 5. База данных на движке PostgreSQL
 
-Шаг 5. База данных на движке PostgreSQL
-
-Создаём БД:
-
+Создаю БД:
+```sql
 CREATE DATABASE demo_pg_db
 ENGINE = PostgreSQL(
     'postgres_ch:5432',
@@ -138,47 +137,26 @@ ENGINE = PostgreSQL(
     'pguser',
     'pgpassword'
 );
-
+```
 Проверка:
 
+```sql
 SHOW TABLES FROM demo_pg_db;
-
+```
 Должна появиться таблица:
 
-trades_pg
+`trades_pg`
 
-Проверка запроса:
+![Скриншот 6 SHOW TABLES]()
 
+Проверка содержимого таблицы:
+```sql
 SELECT * FROM demo_pg_db.trades_pg;
+```
+![Скриншот 7 Результаты SELECT из ClickHouse]()
 
-
-⸻
-
-Что отправлять на проверку
-
-В отчёт включить:
-	1.	CREATE TABLE в PostgreSQL
-	2.	INSERT
-	3.	SELECT через postgres()
-	4.	CREATE TABLE ENGINE = PostgreSQL
-	5.	CREATE DATABASE ENGINE = PostgreSQL
-	6.	Результаты SELECT из ClickHouse
-
-⸻
-
-Архитектурно что ты показал
-	•	ClickHouse → PostgreSQL через table function
-	•	ClickHouse → PostgreSQL через table engine
-	•	ClickHouse → PostgreSQL через database engine
-
-Это три уровня интеграции.
-
-⸻
-
-Если хочешь, дальше можем:
-	•	сравнить производительность postgres() vs ENGINE
-	•	сделать материализацию данных из Postgres в MergeTree
-	•	разобрать pushdown фильтров
-	•	или сделать реальный кейс для финального проекта
-
-Готов начинать настройку?
+### Итог
+Архитектурно видим три уровня интеграции:
+* ClickHouse → PostgreSQL через table function postgres()
+* ClickHouse → PostgreSQL через table engine
+* ClickHouse → PostgreSQL через database engine
