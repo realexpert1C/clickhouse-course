@@ -3,7 +3,7 @@
 Цели задания:
 1.	Установка PostgreSQL в Docker (в уже существующей сети infra-net)
 2.	Создание тестовой таблицы
-3.	Запрос данных из PostgresQL c помощью функции postgres()
+3.	Запрос данных из PostgresQL c помощью функции postgresql()
 4. На стороне ClickHouse создание таблицы для интеграции с PostgreSQL через движок Postgres.
 5. На стороне ClickHouse создание базы данных для интеграции с PostgreSQL.
 
@@ -62,7 +62,6 @@ CREATE TABLE trades_pg (
     trade_time TIMESTAMP
 );
 ```
-![Скриншот 1 SHOW CREATE TABLE в PostgreSQL]()
 
 Заполняю:
 ```sql
@@ -75,16 +74,16 @@ INSERT INTO trades_pg (symbol, price, quantity, trade_time) VALUES
 ```sql
 SELECT * FROM trades_pg;
 ```
-![Скриншот2 SELECT после INSERT]()
+![Скриншот1 SELECT после INSERT]()
 
 ---
 
-## Шаг 3. Запрос из ClickHouse через функцию postgres()
+## Шаг 3. Запрос из ClickHouse через функцию postgresql()
 
 Теперь из ClickHouse:
 ```sql
 SELECT *
-FROM postgres(
+FROM postgresql(
     'postgres_ch:5432',
     'demo_pg',
     'trades_pg',
@@ -94,7 +93,9 @@ FROM postgres(
 ```
 Ожидаемый результат — 3 строки.
 
-![Скриншот 3 SELECT через postgres]()
+![Скриншот2 SELECT через postgres]()
+
+Данные из Postgres получены
 
 ---
 
@@ -122,7 +123,7 @@ ENGINE = PostgreSQL(
 ```sql
 SELECT * FROM demo.trades_pg_engine;
 ```
-![Скриншот 4 SELECT * FROM demo.trades_pg_engine]()
+![Скриншот3 SELECT * FROM demo.trades_pg_engine]()
 
 ---
 
@@ -147,16 +148,20 @@ SHOW TABLES FROM demo_pg_db;
 
 `trades_pg`
 
-![Скриншот 6 SHOW TABLES]()
+![Скриншот4 SHOW TABLES]()
+
+Таблица видна.
 
 Проверка содержимого таблицы:
 ```sql
 SELECT * FROM demo_pg_db.trades_pg;
 ```
-![Скриншот 7 Результаты SELECT из ClickHouse]()
+![Скриншот5 Результаты SELECT из ClickHouse]()
+База данных создана, данные читаются
 
+---
 ### Итог
 Архитектурно видим три уровня интеграции:
-* ClickHouse → PostgreSQL через table function postgres()
+* ClickHouse → PostgreSQL через table function postgresql()
 * ClickHouse → PostgreSQL через table engine
 * ClickHouse → PostgreSQL через database engine
