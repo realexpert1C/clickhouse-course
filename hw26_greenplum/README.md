@@ -74,7 +74,7 @@ INSERT INTO trades_pg (symbol, price, quantity, trade_time) VALUES
 ```sql
 SELECT * FROM trades_pg;
 ```
-![Скриншот1 SELECT после INSERT]()
+![Скриншот1 SELECT после INSERT](https://github.com/realexpert1C/clickhouse-course/blob/4399834a4b3d2f68c538f0747683549897157725/images/hw26_screen1.png)
 
 ---
 
@@ -93,7 +93,7 @@ FROM postgresql(
 ```
 Ожидаемый результат — 3 строки.
 
-![Скриншот2 SELECT через postgres]()
+![Скриншот2 SELECT через postgres](https://github.com/realexpert1C/clickhouse-course/blob/4399834a4b3d2f68c538f0747683549897157725/images/hw26_screen2.png)
 
 Данные из Postgres получены
 
@@ -123,7 +123,7 @@ ENGINE = PostgreSQL(
 ```sql
 SELECT * FROM demo.trades_pg_engine;
 ```
-![Скриншот3 SELECT * FROM demo.trades_pg_engine]()
+![Скриншот3 SELECT * FROM demo.trades_pg_engine](https://github.com/realexpert1C/clickhouse-course/blob/4399834a4b3d2f68c538f0747683549897157725/images/hw26_screen3.png)
 
 ---
 
@@ -148,7 +148,7 @@ SHOW TABLES FROM demo_pg_db;
 
 `trades_pg`
 
-![Скриншот4 SHOW TABLES]()
+![Скриншот4 SHOW TABLES](https://github.com/realexpert1C/clickhouse-course/blob/4399834a4b3d2f68c538f0747683549897157725/images/hw26_screen4.png)
 
 Таблица видна.
 
@@ -156,7 +156,7 @@ SHOW TABLES FROM demo_pg_db;
 ```sql
 SELECT * FROM demo_pg_db.trades_pg;
 ```
-![Скриншот5 Результаты SELECT из ClickHouse]()
+![Скриншот5 Результаты SELECT из ClickHouse](https://github.com/realexpert1C/clickhouse-course/blob/4399834a4b3d2f68c538f0747683549897157725/images/hw26_screen5.png)
 База данных создана, данные читаются
 
 ---
