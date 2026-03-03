@@ -246,147 +246,182 @@ Yandex DataLens
 
 ---
 
-### 1.8. Мониторинг
+### 1.8 Мониторинг и наблюдаемость системы
+
+#### Цель мониторинга
+
+В рамках проекта реализуется полноценная система наблюдаемости (observability), позволяющая:
+- контролировать корректность ingestion (batch и streaming),
+- анализировать поведение ClickHouse под нагрузкой,
+- отслеживать деградацию при burst-нагрузке,
+- выявлять узкие места,
+- сравнивать эффективность двух способов загрузки данных.
+
+
+#### Архитектура мониторинга
 
 Используются:
-* Prometheus
-* Grafana
+* Prometheus — сбор метрик
+* Grafana — визуализация и алертинг
 
-Мониторятся:
-- insert rate
-- количество частей (parts count)
-- backlog merge
-- CPU
-- память
-- Kafka lag
-- время выполнения запросов
+Общая схема:
+```txt
+Replay Service
+        ↓
+      Kafka
+        ↓
+    ClickHouse
+        ↓
+    Prometheus
+        ↓
+Grafana Dashboards
+```
+
+#### 1.8.1. Мониторинг Replay Service
+
+Replay Service является активным участником системы и подлежит мониторингу наравне с ClickHouse и Kafka.
+
+__Метрики производительности__
+
+Позволяют контролировать фактическую скорость генерации данных:
+* replay_events_total
+* replay_events_per_second
+* kafka_messages_sent_total
+* batch_flush_total
+* batch_size_current
+
+Позволяют определить:
+* идут ли события корректно,
+* соответствует ли скорость ожидаемой при текущем TIME_SCALE,
+* применился ли INTENSITY_K,
+* нет ли падения throughput.
+
+
+__Метрики ошибок__
+
+Критически важны для стабильности эксперимента:
+* kafka_send_errors_total
+* clickhouse_insert_errors_total
+* retry_count_total
+
+Используются для алертинга при превышении допустимого уровня ошибок.
+
+__Метрики задержек__
+
+Позволяют выявлять деградацию системы:
+* batch_flush_duration_seconds
+* kafka_send_latency_seconds
+* replay_processing_lag_seconds
+
+Позволяют увидеть:
+- замедление batch-вставок,
+- зависание Kafka producer,
+- накопление внутреннего лага.
 
 ---
 
-🧠 Что именно нужно мониторить в Replay Service
+#### 1.8.2. Мониторинг ClickHouse
 
-🔹 1️⃣ Скорость отправки событий
+Контроль состояния кластера и поведения при нагрузке.
 
-Метрики:
-	•	replay_events_total
-	•	replay_events_per_second
-	•	batch_flush_total
-	•	batch_size_current
-	•	kafka_messages_sent_total
+Основные метрики:
+- Insert rate
+- PartsNumber (количество частей)
+- BackgroundMergesAndMutationsPoolTask
+- ReplicasMaxQueueSize
+- DelayedInserts
+- QueryDuration
 
-Это позволит понять:
-	•	реально ли идут данные
-	•	совпадает ли интенсивность с ожидаемой
-	•	нет ли просадки
+Анализируется:
+* рост числа мелких частей,
+* backlog merge-процессов,
+* задержка вставок,
+* влияние нагрузки на выполнение аналитических запросов.
 
-⸻
+---
 
-🔹 2️⃣ Ошибки вставки
-	•	kafka_send_errors_total
-	•	clickhouse_insert_errors_total
-	•	retry_count_total
+#### 1.8.3. Мониторинг Kafka
 
-⚠ Это критично для алертов.
+Контроль потоковой составляющей ingestion.
 
-⸻
+Основные метрики:
+* consumer lag
+* messages in per second
+* messages out per second
+* producer error rate
 
-🔹 3️⃣ Задержки
-	•	batch_flush_duration_seconds
-	•	kafka_send_latency_seconds
-	•	replay_processing_lag_seconds
+Позволяет выявлять:
+- накопление lag,
+- перегрузку топиков,
+- проблемы доставки сообщений.
 
-Это позволит увидеть:
-	•	не начал ли batch “тормозить”
-	•	не зависает ли Kafka producer
+---
 
-⸻
+#### 1.8.4. Системные метрики
 
-📈 Что мониторит Prometheus в целом
+Собираются через Node Exporter:
+* CPU usage
+* RAM usage
+* IO wait
+* Disk write rate
+* Disk space usage
 
-ClickHouse
-	•	InsertQuery
-	•	PartsNumber
-	•	BackgroundMergesAndMutationsPoolTask
-	•	ReplicasMaxQueueSize
-	•	QueryDuration
-	•	DelayedInserts
+Необходимы для анализа:
+- утилизации ресурсов,
+- достижения предельной нагрузки,
+- влияния batch vs streaming на железо.
 
-Kafka
-	•	consumer lag
-	•	messages in per second
-	•	messages out per second
+---
 
-Система
-	•	CPU
-	•	RAM
-	•	IO wait
-	•	Disk write
+#### 1.8.5. Алертинг
 
-⸻
+__Алерты для Replay Service__
+* отсутствие новых событий > 60 секунд
+* batch не выполнялся > 20 минут
+* error rate > 1%
+* изменение INTENSITY_K без роста throughput
 
-🚨 Какие алерты нужны
-
-По Replay Service
-	•	нет новых событий > 60 сек
-	•	batch не flush > 20 мин
-	•	error rate > 1%
-	•	INTENSITY_K применён, а скорость не выросла
-
-⸻
-
-По ClickHouse
-	•	parts > 10 000
-	•	merges backlog > threshold
-	•	insert queue delay > X
-	•	replication queue > X
-
-⸻
-
-По Kafka
-	•	consumer lag растёт > 5 минут
-	•	producer error
-
-⸻
-
-📜 Логирование Replay Service
-
-Должно быть:
-	•	JSON-логи
-	•	structured logging
-	•	уровень INFO / WARNING / ERROR
-	•	вывод в stdout (Docker logs)
-
-Дальше:
-	•	Promtail → Loki (опционально)
-или
-	•	просто хранение docker logs
-
-⸻
-
-🎯 Важное понимание
-
-Replay Service — это не просто генератор.
-Это участник системы, и его нужно мониторить так же, как ClickHouse.
-
-⸻
-
-🧱 Архитектурно правильно
-
-Replay Service
-    ↓ metrics
-Prometheus
-    ↓
-Grafana Dashboard:
-    - Replay rate
-    - Batch rate
-    - Kafka rate
-    - Insert rate
-    - CH parts
-    - CPU
+__Алерты для ClickHouse__
+* parts > 10 000
+* merges backlog превышает порог
+* insert queue delay выше допустимого значения
+* рост replication queue
 
 
+__Алерты для Kafka__
+* consumer lag растёт более 5 минут
+* producer error
 
-Это позволяет наблюдать реакцию системы при изменении нагрузки.
+---
+
+#### 1.8.6. Логирование Replay Service
+
+Replay Service ведёт структурированное логирование:
+* формат JSON
+* уровни: INFO / WARNING / ERROR
+* вывод в stdout (Docker logs)
+
+Опционально возможно:
+* интеграция с Promtail + Loki
+* централизованное хранение логов
+
+---
+
+#### 1.8.7. Единый Dashboard эксперимента
+
+В Grafana формируется отдельный dashboard для анализа ingestion-эксперимента.
+
+В него включаются:
+* Replay rate
+* Batch insert rate
+* Kafka throughput
+* ClickHouse insert rate
+* Parts count
+* Merge backlog
+* CPU / RAM
+* Disk IO
+
+Мониторинг позволяет наблюдать поведение всей системы как в моменты загрузки данных, так и переключения между batch и streaming дашбордами в DataLens. Другими словами получить то, что является целью настоящего проекта - состояние и реакцию системы при изменении нагрузки.
 
 ---
 
@@ -415,7 +450,13 @@ Grafana Dashboard:
 ---
 ### 1.11. Инфраструктура и аппаратная конфигурация (Deployment Environment)
 
-Сервер (Execution Environment)
+1. Сервер VPS для использования публичного IP и доступа из Интернет для демонстрации работы системы:
+- CPU: 1 vCPU
+- RAM: 1 GB
+- Storage: NVMe SSD 15GB
+- OS: Ubuntu 22.04 LTS
+
+2. Сервер проекта, на котором разворачиваются контейнеры:
 - CPU: 12 vCPU
 - RAM: 40 GB
 - Storage: NVMe SSD 200GB
@@ -433,57 +474,554 @@ Grafana Dashboard:
 * управление жизненным циклом данных,
 * построение production-подобной архитектуры аналитической платформы.
 
-PHASE 0 — Базовая инфраструктура
 
-Цель:
+## 2. Реализация проекта
+
+### Шаг 0 - Базовая инфраструктура 
+
+🎯 Цель:
 
 Подготовить сервер, сеть и ClickHouse кластер.
 
 Что входит:
-	•	Ubuntu Server
-	•	Docker + Docker Compose
-	•	WireGuard (VPS ↔ Ubuntu)
-	•	Проброс портов через VPS
-	•	ClickHouse cluster (1 shard, 2 replicas)
-	•	ClickHouse Keeper (3 nodes)
-	•	Portainer
+#### Установка OS Ubuntu Server 22.04 LTS 
+  Операционная система развернута из стандартного дистрибутива с сайта (https://releases.ubuntu.com/22.04/). Имя сервера - `ch-lab`
+#### Установка Docker и Docker Compose на `ch-lab` 
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg
 
-⸻
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+  sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 
-📍 Текущий статус (МЫ ЗДЕСЬ)
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo $VERSION_CODENAME) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-✔ Ubuntu Server развернут
-✔ Docker работает
-✔ WireGuard настроен
-✔ VPS пробрасывает порт
-✔ Развернут ClickHouse cluster
-✔ Keeper cluster работает
-✔ Portainer работает
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+Проверка:
+```bash
+docker --version
+docker compose version
+```
 
-➡ Базовый слой готов.
+#### Развертывание кластера ClickHouse cluster (1 shard, 2 replicas) и ClickHouse Keeper (3 nodes)
+На сервере `ch-lab`:
 
-⸻
+🧱 1. Создание структуры каталогов
+```bash
+mkdir -p ~/infra/ch-cluster
+cd ~/infra/ch-cluster
 
-🔜 PHASE 1 — Инфраструктура данных (Bootstrap Layer)
+mkdir -p ch1/config.d
+mkdir -p ch2/config.d
 
-Цель:
+mkdir -p keeper1
+mkdir -p keeper2
+mkdir -p keeper3
+
+mkdir -p /data/clickhouse/ch1
+mkdir -p /data/clickhouse/ch2
+
+mkdir -p /data/keeper/keeper1
+mkdir -p /data/keeper/keeper2
+mkdir -p /data/keeper/keeper3
+```
+
+---
+
+🔐 2. Настройка прав доступа
+
+Критически важно — иначе контейнеры не стартуют.
+```bash
+sudo chown -R 101:101 /data/clickhouse
+sudo chown -R 101:101 /data/keeper
+
+sudo chmod -R 750 /data/clickhouse
+sudo chmod -R 750 /data/keeper
+```
+Где:
+- 101 — UID пользователя clickhouse внутри контейнера.
+
+---
+
+🧩 3. Конфигурация Keeper
+
+Файл: `config.xml`
+<details>
+<summary>infra/ch-cluster/keeper1/config.xml</summary>
+
+```xml
+<clickhouse>
+    <logger>
+        <level>information</level>
+        <console>true</console>
+    </logger>
+       
+    <listen_host>0.0.0.0</listen_host>
+
+    <keeper_server>
+        <tcp_port>9181</tcp_port>
+
+        <server_id>1</server_id>
+
+        <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>
+        <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>
+
+        <coordination_settings>
+            <operation_timeout_ms>10000</operation_timeout_ms>
+            <session_timeout_ms>30000</session_timeout_ms>
+        </coordination_settings>
+
+        <raft_configuration>
+            <server>
+                <id>1</id>
+                <hostname>keeper1</hostname>
+                <port>9234</port>
+            </server>
+            <server>
+                <id>2</id>
+                <hostname>keeper2</hostname>
+                <port>9234</port>
+            </server>
+            <server>
+                <id>3</id>
+                <hostname>keeper3</hostname>
+                <port>9234</port>
+            </server>
+        </raft_configuration>
+    </keeper_server>
+</clickhouse>
+```
+
+</details>
+</br>
+
+Для keeper2 и keeper3 меняется только:
+```xml
+<server_id>2</server_id>
+```
+и
+```xml
+<server_id>3</server_id>
+```
+---
+
+
+🗂 4. Макросы `macros.xml` (обязательно для кластера)
+
+<details>
+<summary>infra/ch-cluster/ch1/config.d/macros.xml</summary>
+
+```xml
+<clickhouse>
+  <macros>
+    <cluster>replicated_cluster</cluster>
+    <shard>01</shard>
+    <replica>ch2</replica>
+  </macros>
+</clickhouse>
+```
+</details>
+
+<details>
+<summary>infra/ch-cluster/ch2/config.d/macros.xml</summary>
+
+```xml
+<clickhouse>
+  <macros>
+    <cluster>replicated_cluster</cluster>
+    <shard>01</shard>
+    <replica>ch2</replica>
+  </macros>
+</clickhouse>
+```
+</details>
+</br>
+
+---
+
+
+🌐 5. Файл `remote_servers.xml` (одинаковый на обеих нодах)
+
+<details>
+<summary>infra/ch-cluster/ch1/config.d/remote_servers.xml</summary>
+
+```xml
+<clickhouse>
+  <remote_servers>
+    <cluster_1>
+      <shard>
+        <replica>
+          <host>ch1</host>
+          <port>9000</port>
+        </replica>
+        <replica>
+          <host>ch2</host>
+          <port>9000</port>
+        </replica>
+      </shard>
+    </cluster_1>
+  </remote_servers>
+</clickhouse>
+```
+</details>
+</br>
+
+---
+
+🔗 6. Файл `zookeeper.xml` (подключение к Keeper)
+
+<details>
+<summary>infra/ch-cluster/ch1/config.d/zookeeper.xml</summary>
+
+```xml
+<clickhouse>
+  <zookeeper>
+    <node>
+      <host>keeper1</host>
+      <port>9181</port>
+    </node>
+    <node>
+      <host>keeper2</host>
+      <port>9181</port>
+    </node>
+    <node>
+      <host>keeper3</host>
+      <port>9181</port>
+    </node>
+  </zookeeper>
+</clickhouse>
+```
+</details>
+</br>
+
+---
+
+🌍 7. Настройка хоста для доступа
+Файл `listen.xml` на ch1 и ch2 (чтобы HTTP был доступен извне)
+
+<details>
+<summary>infra/ch-cluster/ch1/config.d/listen.xml</summary>
+
+```xml
+<clickhouse>
+  <listen_host>0.0.0.0</listen_host>
+</clickhouse>
+```
+</details>
+</br>
+
+Это необходимо, потому что все элементы кластера разворачиваются в контейнерах, в которых localhost в каждом случае свой и находится внутри, а мне нужно, чтобы в контейнеры был доступ снаружи через HTTP
+
+---
+
+🔑 8. Файл `users_override.xml` (создание default пользователя)
+
+<details>
+<summary>infra/ch-cluster/ch1/config.d/users_override.xml</summary>
+
+```xml
+<clickhouse>
+    <users>
+        <default>
+            <password_sha256_hex>...</password_sha256_hex>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+        </default>
+    </users>
+</clickhouse>
+```
+</details>
+</br>
+
+---
+
+⚙️ 9. Распределение ресурсов. Файл `memory_limits.xml`
+
+<details>
+<summary>infra/ch-cluster/ch1/config.d/memory_limits.xml</summary>
+
+```xml
+<clickhouse>
+
+    <!-- Общий лимит сервера -->
+    <max_server_memory_usage>8000000000</max_server_memory_usage>
+
+    <profiles>
+        <default>
+            <!-- Лимит на один запрос -->
+            <max_memory_usage>2000000000</max_memory_usage>
+
+            <!-- Spill на диск -->
+            <max_bytes_before_external_group_by>1000000000</max_bytes_before_external_group_by>
+            <max_bytes_before_external_sort>1000000000</max_bytes_before_external_sort>
+        </default>
+    </profiles>
+
+</clickhouse>
+```
+</details>
+</br>
+
+---
+🐳 10. Файл `docker-compose.yml` (ClickHouse cluster)
+
+<details>
+<summary>infra/ch-cluster/docker-compose.yml</summary>
+
+```yml
+services:
+
+  keeper1:
+    image: clickhouse/clickhouse-keeper:25.3
+    container_name: keeper1
+    hostname: keeper1
+    restart: unless-stopped
+    user: "101:101"
+    mem_limit: 1g
+    cpus: "1.0"
+    environment:
+      CLICKHOUSE_CONFIG: /etc/clickhouse-keeper/keeper_config.xml
+    volumes:
+      - /data/keeper/keeper1:/var/lib/clickhouse
+      - ./keeper1/config.xml:/etc/clickhouse-keeper/keeper_config.xml
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    networks:
+      - infra-net
+
+  keeper2:
+    image: clickhouse/clickhouse-keeper:25.3
+    container_name: keeper2
+    hostname: keeper2
+    restart: unless-stopped
+    user: "101:101"
+    mem_limit: 1g
+    cpus: "1.0"
+    environment:
+      CLICKHOUSE_CONFIG: /etc/clickhouse-keeper/keeper_config.xml
+    volumes:
+      - /data/keeper/keeper2:/var/lib/clickhouse
+      - ./keeper2/config.xml:/etc/clickhouse-keeper/keeper_config.xml
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    networks:
+      - infra-net
+
+  keeper3:
+    image: clickhouse/clickhouse-keeper:25.3
+    container_name: keeper3
+    hostname: keeper3
+    restart: unless-stopped
+    user: "101:101"
+    mem_limit: 1g
+    cpus: "1.0"
+    environment:
+      CLICKHOUSE_CONFIG: /etc/clickhouse-keeper/keeper_config.xml
+    volumes:
+      - /data/keeper/keeper3:/var/lib/clickhouse
+      - ./keeper3/config.xml:/etc/clickhouse-keeper/keeper_config.xml
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    networks:
+      - infra-net
+
+  ch1:
+    image: clickhouse/clickhouse-server:25.3
+    container_name: ch1
+    hostname: ch1
+    restart: unless-stopped
+    user: "101:101"
+    depends_on:
+      - keeper1
+      - keeper2
+      - keeper3
+    mem_limit: 10g
+    cpus: "5.0"
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - /data/clickhouse/ch1:/var/lib/clickhouse
+      - ./ch1/config.d:/etc/clickhouse-server/config.d
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    networks:
+      - infra-net
+
+  ch2:
+    image: clickhouse/clickhouse-server:25.3
+    container_name: ch2
+    hostname: ch2
+    restart: unless-stopped
+    user: "101:101"
+    depends_on:
+      - keeper1
+      - keeper2
+      - keeper3
+    mem_limit: 10g
+    cpus: "5.0"
+    ports:
+      - "8124:8123"
+      - "9002:9000"
+    volumes:
+      - /data/clickhouse/ch2:/var/lib/clickhouse
+      - ./ch2/config.d:/etc/clickhouse-server/config.d
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    networks:
+      - infra-net
+
+networks:
+  infra-net:
+    name: infra-net
+    driver: bridge
+```
+</details>
+</br>
+
+И в дополнение файл окружения `.env`:
+
+
+<details>
+<summary>infra/ch-cluster/.env</summary>
+
+```bash
+CLICKHOUSE_PASSWORD=*************
+```
+</details>
+</br>
+
+---
+
+🚀 11. Порядок запуска
+
+```bash
+docker compose up -d keeper1 keeper2 keeper3
+```
+Проверка:
+```bash
+docker exec -it keeper1 bash -c "echo stat | nc localhost 9181"
+```
+Должен быть один leader и два follower.
+
+Затем:
+```bash
+docker compose up -d ch1 ch2
+```
+
+🧪 Проверка кластера
+```bash
+docker exec -it ch1 clickhouse-client
+```
+В Clickhouse клиенте
+
+```sql
+SELECT * FROM system.clusters;
+
+SELECT * FROM system.zookeeper WHERE path = '/';
+```
+
+#### Развёртывание Portainer (опционально)
+Делаем, если удобнее визульный интерфейс мониторинга контейнеров
+
+```bash
+docker volume create portainer_data
+
+docker run -d \
+  -p 9001:9000 \
+  --name portainer \
+  --restart=always \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v portainer_data:/data \
+  portainer/portainer-ce:latest
+```
+После этого Portainer доступен по: `http://<SERVER_IP>:9001`
+
+---
+
+#### Структура каталогов кластера:
+```txt
+.
+├── ch1
+│   └── config.d
+│       ├── listen.xml
+│       ├── macros.xml
+│       ├── memory_limits.xml
+│       ├── remote_servers.xml
+│       ├── users_override.xml
+│       └── zookeeper.xml
+├── ch2
+│   └── config.d
+│       ├── listen.xml
+│       ├── macros.xml
+│       ├── memory_limits.xml
+│       ├── remote_servers.xml
+│       ├── users_override.xml
+│       └── zookeeper.xml
+├── docker-compose.yml
+├── .env
+├── keeper1
+│   └── config.xml
+├── keeper2
+│   └── config.xml
+└── keeper3
+    └── config.xml
+
+7 directories, 17 files
+```
+
+
+#### Результат шага
+ - развернут основной сервер проекта
+ - на сервере создана основная часть архитектуры - кластер базы данных Clickhouse в контейнерах Docker
+
+
+---
+
+### Шаг 1 — Инфраструктура данных (Bootstrap Layer)
+
+🎯 Цель:
 
 Подготовить систему к работе с данными.
 
-1.1 Установка и настройка Kafka
+#### 1.1 Установка и настройка Kafka
 	•	контейнер Kafka
 	•	контейнер Zookeeper (если не используем KRaft)
 	•	внутренние сети Docker
 	•	topic для сделок
 
-1.2 Установка Prometheus
+#### 1.2 Установка Prometheus
 	•	сбор метрик:
 	•	ClickHouse
 	•	Kafka
 	•	Node Exporter
 	•	Docker
 
-1.3 Установка Grafana
+#### 1.3 Установка Grafana
 	•	базовые dashboards:
 	•	CPU
 	•	RAM
@@ -491,15 +1029,19 @@ PHASE 0 — Базовая инфраструктура
 	•	ClickHouse
 	•	Kafka
 
-1.4 Развертывание MinIO (cold storage)
+#### 1.4 Развертывание MinIO (cold storage) - опционально
 	•	S3-compatible storage
 	•	бакет для архивов
 
-⸻
 
-🔜 PHASE 2 — Bootstrap загрузка данных через Airflow
 
-Цель:
+#### Результат шага
+
+---
+
+### Шаг 3 — Bootstrap загрузка данных через Airflow
+
+🎯 Цель:
 
 Создать source-of-truth датасет (июль 2023).
 
