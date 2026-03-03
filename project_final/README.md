@@ -92,17 +92,17 @@ Replay Service — отдельный контейнер в Docker Compose, ко
 ---
 
 #### Общая схема потоков
-
-Исторический файл (июль 2023)
-           ↓
-       Replay Service
-           ↓
+```txt
+        Исторический файл (июль 2023)
+                    ↓
+              Replay Service
+                    ↓
     ┌───────────────┬────────────────┐
     ↓                                ↓
 Kafka Topic                     Batch Buffer
     ↓                                ↓
 ClickHouse (stream)          ClickHouse (batch)
-
+```
 Replay Service является интеллектуальным слоем системы. Kafka используется только как транспорт сообщений.
 
 ---
