@@ -261,7 +261,132 @@ Yandex DataLens
 - Kafka lag
 - время выполнения запросов
 
-Это позволяет наблюдать реакцию системы при переключении между дашбордами.
+---
+
+🧠 Что именно нужно мониторить в Replay Service
+
+🔹 1️⃣ Скорость отправки событий
+
+Метрики:
+	•	replay_events_total
+	•	replay_events_per_second
+	•	batch_flush_total
+	•	batch_size_current
+	•	kafka_messages_sent_total
+
+Это позволит понять:
+	•	реально ли идут данные
+	•	совпадает ли интенсивность с ожидаемой
+	•	нет ли просадки
+
+⸻
+
+🔹 2️⃣ Ошибки вставки
+	•	kafka_send_errors_total
+	•	clickhouse_insert_errors_total
+	•	retry_count_total
+
+⚠ Это критично для алертов.
+
+⸻
+
+🔹 3️⃣ Задержки
+	•	batch_flush_duration_seconds
+	•	kafka_send_latency_seconds
+	•	replay_processing_lag_seconds
+
+Это позволит увидеть:
+	•	не начал ли batch “тормозить”
+	•	не зависает ли Kafka producer
+
+⸻
+
+📈 Что мониторит Prometheus в целом
+
+ClickHouse
+	•	InsertQuery
+	•	PartsNumber
+	•	BackgroundMergesAndMutationsPoolTask
+	•	ReplicasMaxQueueSize
+	•	QueryDuration
+	•	DelayedInserts
+
+Kafka
+	•	consumer lag
+	•	messages in per second
+	•	messages out per second
+
+Система
+	•	CPU
+	•	RAM
+	•	IO wait
+	•	Disk write
+
+⸻
+
+🚨 Какие алерты нужны
+
+По Replay Service
+	•	нет новых событий > 60 сек
+	•	batch не flush > 20 мин
+	•	error rate > 1%
+	•	INTENSITY_K применён, а скорость не выросла
+
+⸻
+
+По ClickHouse
+	•	parts > 10 000
+	•	merges backlog > threshold
+	•	insert queue delay > X
+	•	replication queue > X
+
+⸻
+
+По Kafka
+	•	consumer lag растёт > 5 минут
+	•	producer error
+
+⸻
+
+📜 Логирование Replay Service
+
+Должно быть:
+	•	JSON-логи
+	•	structured logging
+	•	уровень INFO / WARNING / ERROR
+	•	вывод в stdout (Docker logs)
+
+Дальше:
+	•	Promtail → Loki (опционально)
+или
+	•	просто хранение docker logs
+
+⸻
+
+🎯 Важное понимание
+
+Replay Service — это не просто генератор.
+Это участник системы, и его нужно мониторить так же, как ClickHouse.
+
+⸻
+
+🧱 Архитектурно правильно
+
+Replay Service
+    ↓ metrics
+Prometheus
+    ↓
+Grafana Dashboard:
+    - Replay rate
+    - Batch rate
+    - Kafka rate
+    - Insert rate
+    - CH parts
+    - CPU
+
+
+
+Это позволяет наблюдать реакцию системы при изменении нагрузки.
 
 ---
 
@@ -308,9 +433,255 @@ Yandex DataLens
 * управление жизненным циклом данных,
 * построение production-подобной архитектуры аналитической платформы.
 
+PHASE 0 — Базовая инфраструктура
+
+Цель:
+
+Подготовить сервер, сеть и ClickHouse кластер.
+
+Что входит:
+	•	Ubuntu Server
+	•	Docker + Docker Compose
+	•	WireGuard (VPS ↔ Ubuntu)
+	•	Проброс портов через VPS
+	•	ClickHouse cluster (1 shard, 2 replicas)
+	•	ClickHouse Keeper (3 nodes)
+	•	Portainer
+
+⸻
+
+📍 Текущий статус (МЫ ЗДЕСЬ)
+
+✔ Ubuntu Server развернут
+✔ Docker работает
+✔ WireGuard настроен
+✔ VPS пробрасывает порт
+✔ Развернут ClickHouse cluster
+✔ Keeper cluster работает
+✔ Portainer работает
+
+➡ Базовый слой готов.
+
+⸻
+
+🔜 PHASE 1 — Инфраструктура данных (Bootstrap Layer)
+
+Цель:
+
+Подготовить систему к работе с данными.
+
+1.1 Установка и настройка Kafka
+	•	контейнер Kafka
+	•	контейнер Zookeeper (если не используем KRaft)
+	•	внутренние сети Docker
+	•	topic для сделок
+
+1.2 Установка Prometheus
+	•	сбор метрик:
+	•	ClickHouse
+	•	Kafka
+	•	Node Exporter
+	•	Docker
+
+1.3 Установка Grafana
+	•	базовые dashboards:
+	•	CPU
+	•	RAM
+	•	Disk
+	•	ClickHouse
+	•	Kafka
+
+1.4 Развертывание MinIO (cold storage)
+	•	S3-compatible storage
+	•	бакет для архивов
+
+⸻
+
+🔜 PHASE 2 — Bootstrap загрузка данных через Airflow
+
+Цель:
+
+Создать source-of-truth датасет (июль 2023).
+
+2.1 Развернуть Airflow
+	•	docker-compose
+	•	Postgres backend
+	•	volume для dags
+	•	публичный доступ через Nginx
+
+2.2 DAG: Загрузка Binance July 2023
+	•	загрузка через API
+	•	запись в staging table
+	•	экспорт в Parquet
+	•	сохранение в:
+	•	локальный volume
+	•	MinIO (опционально)
+
+2.3 DAG: Загрузка погоды
+	•	загрузка hourly
+	•	создание reference table
+
+2.4 DAG: Загрузка электроэнергии
+	•	загрузка hourly
+	•	создание reference table
+
+⸻
+
+🔜 PHASE 3 — Проектирование схемы ClickHouse
+
+Цель:
+
+Создать правильную архитектуру таблиц.
+
+3.1 Raw Layer
+	•	replicated raw table
+	•	TTL или manual cleanup
+
+3.2 Kafka Engine Table
+	•	таблица для streaming ingestion
+
+3.3 Materialized Views
+	•	из Kafka → Raw
+	•	агрегации (1m, 15m, 1h, 1d)
+
+3.4 Data Mart
+	•	таблицы с JOIN:
+	•	trades
+	•	weather
+	•	electricity
+
+⸻
+
+🔜 PHASE 4 — Replay Service (ключевой этап)
+
+Цель:
+
+Создать управляемый генератор нагрузки.
+
+4.1 Контейнер Replay Service
+	•	чтение Parquet
+	•	TIME_SCALE
+	•	INTENSITY_K
+	•	batch + streaming
+
+4.2 Kafka Producer
+	•	acks=all
+	•	idempotence=true
+
+4.3 Batch Engine
+	•	MIN_BATCH_SIZE
+	•	MAX_BATCH_INTERVAL
+
+4.4 State Control
+	•	start / stop / pause
+	•	loop July
+
+⸻
+
+🔜 PHASE 5 — Мониторинг лаборатории
+
+Цель:
+
+Сделать систему наблюдаемой.
+
+5.1 ClickHouse metrics
+	•	insert rate
+	•	parts
+	•	merges backlog
+
+5.2 Kafka metrics
+	•	lag
+	•	throughput
+
+5.3 Replay metrics
+	•	events/sec
+	•	batch size
+	•	error rate
+
+5.4 Grafana dashboards
+	•	unified ingestion experiment dashboard
+
+⸻
+
+🔜 PHASE 6 — Визуализация
+
+Цель:
+
+Сравнение batch vs streaming.
+
+6.1 Развернуть DataLens
+
+(или подключить к существующему)
+
+6.2 Два идентичных dashboard
+	•	batch source
+	•	streaming source
+
+6.3 Синхронизированные фильтры
+
+⸻
+
+🔜 PHASE 7 — Управление жизненным циклом
+
+7.1 TTL или TRUNCATE после цикла
+
+7.2 DAG для очистки
+
+7.3 DAG для запуска нового эксперимента
+
+⸻
+
+🔜 PHASE 8 — Backup & Recovery
+
+8.1 clickhouse-backup
+
+8.2 backup в MinIO
+
+8.3 восстановление кластера
+
+⸻
+
+🔜 PHASE 9 — Документация и репозиторий
+
+9.1 README.md
+	•	архитектура
+	•	схемы
+	•	инструкции запуска
+
+9.2 Скриншоты
+	•	Portainer
+	•	Grafana
+	•	DataLens
+	•	нагрузка
+
+9.3 Описание эксперимента
+	•	при INTENSITY_K = 1
+	•	при INTENSITY_K = 5
+	•	при INTENSITY_K = 10
+
+⸻
+
+🔜 PHASE 10 — Презентация (10–15 минут)
+	1.	Проблема
+	2.	Архитектура
+	3.	Инженерное решение
+	4.	Демонстрация
+	5.	Результаты
+	6.	Ограничения
+	7.	Что можно улучшить
 
 
 ## 2. Реализация проекта
+
+
+
+
+
+
+
+
+
+
 
 
 ⸻
