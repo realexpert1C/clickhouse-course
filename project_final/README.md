@@ -1039,19 +1039,19 @@ docker run -d \
 
 ---
 
-### Шаг 3 — Bootstrap загрузка данных через Airflow
+### Шаг 2 — Bootstrap загрузка данных через Airflow
 
 🎯 Цель:
 
 Создать source-of-truth датасет (июль 2023).
 
-2.1 Развернуть Airflow
+#### 2.1 Развернуть Airflow
 	•	docker-compose
 	•	Postgres backend
 	•	volume для dags
 	•	публичный доступ через Nginx
 
-2.2 DAG: Загрузка Binance July 2023
+#### 2.2 DAG: Загрузка Binance July 2023
 	•	загрузка через API
 	•	запись в staging table
 	•	экспорт в Parquet
@@ -1059,176 +1059,185 @@ docker run -d \
 	•	локальный volume
 	•	MinIO (опционально)
 
-2.3 DAG: Загрузка погоды
+#### 2.3 DAG: Загрузка погоды
 	•	загрузка hourly
 	•	создание reference table
 
-2.4 DAG: Загрузка электроэнергии
+#### 2.4 DAG: Загрузка электроэнергии
 	•	загрузка hourly
 	•	создание reference table
 
-⸻
+#### Результат шага
 
-🔜 PHASE 3 — Проектирование схемы ClickHouse
+---
 
-Цель:
+### Шаг 3 — Проектирование схемы ClickHouse
+
+🎯 Цель:
 
 Создать правильную архитектуру таблиц.
 
-3.1 Raw Layer
-	•	replicated raw table
-	•	TTL или manual cleanup
+#### 3.1 Raw Layer
+- replicated raw table
+- TTL или manual cleanup
 
-3.2 Kafka Engine Table
-	•	таблица для streaming ingestion
+#### 3.2 Kafka Engine Table
+- таблица для streaming ingestion
 
-3.3 Materialized Views
-	•	из Kafka → Raw
-	•	агрегации (1m, 15m, 1h, 1d)
+#### 3.3 Materialized Views
+- из Kafka → Raw
+- агрегации (1m, 15m, 1h, 1d)
 
-3.4 Data Mart
-	•	таблицы с JOIN:
-	•	trades
-	•	weather
-	•	electricity
+#### 3.4 Data Mart
+- таблицы с JOIN:
+- trades
+- weather
+- electricity
 
-⸻
+#### Результат шага
 
-🔜 PHASE 4 — Replay Service (ключевой этап)
+---
 
-Цель:
+### Шаг 4 — Replay Service (ключевой этап)
+
+🎯 Цель:
 
 Создать управляемый генератор нагрузки.
 
-4.1 Контейнер Replay Service
-	•	чтение Parquet
-	•	TIME_SCALE
-	•	INTENSITY_K
-	•	batch + streaming
+#### 4.1 Контейнер Replay Service
+- чтение Parquet
+- TIME_SCALE
+- INTENSITY_K
+- batch + streaming
 
-4.2 Kafka Producer
-	•	acks=all
-	•	idempotence=true
+#### 4.2 Kafka Producer
+- acks=all
+- idempotence=true
 
-4.3 Batch Engine
-	•	MIN_BATCH_SIZE
-	•	MAX_BATCH_INTERVAL
+#### 4.3 Batch Engine
+- MIN_BATCH_SIZE
+- MAX_BATCH_INTERVAL
 
-4.4 State Control
-	•	start / stop / pause
-	•	loop July
+#### State Control
+- start / stop / pause
+- loop July
 
-⸻
+#### Результат шага
 
-🔜 PHASE 5 — Мониторинг лаборатории
+---
 
-Цель:
+### Шаг  5 — Мониторинг лаборатории
+
+🎯 Цель:
 
 Сделать систему наблюдаемой.
 
-5.1 ClickHouse metrics
-	•	insert rate
-	•	parts
-	•	merges backlog
+#### 5.1 ClickHouse metrics
+- insert rate
+- parts
+- merges backlog
 
-5.2 Kafka metrics
-	•	lag
-	•	throughput
+#### 5.2 Kafka metrics
+- lag
+- throughput
 
-5.3 Replay metrics
-	•	events/sec
-	•	batch size
-	•	error rate
+#### 5.3 Replay metrics
+- events/sec
+- batch size
+- error rate
 
-5.4 Grafana dashboards
-	•	unified ingestion experiment dashboard
+#### 5.4 Grafana dashboards
+- unified ingestion experiment dashboard
 
-⸻
+#### Результат шага
 
-🔜 PHASE 6 — Визуализация
+---
 
-Цель:
+### Шаг 6 — Визуализация
 
-Сравнение batch vs streaming.
+🎯 Цель:
 
-6.1 Развернуть DataLens
+Сравнение __batch__ vs __streaming__.
+
+#### 6.1 Развернуть DataLens
 
 (или подключить к существующему)
 
-6.2 Два идентичных dashboard
-	•	batch source
-	•	streaming source
+#### 6.2 Два идентичных dashboard
+- batch source
+- streaming source
 
-6.3 Синхронизированные фильтры
+#### 6.3 Синхронизированные фильтры
 
-⸻
+#### Результат шага
+---
 
-🔜 PHASE 7 — Управление жизненным циклом
+### Шаг  7 — Управление жизненным циклом
 
-7.1 TTL или TRUNCATE после цикла
+🎯 Цель:
 
-7.2 DAG для очистки
+#### 7.1 TTL или TRUNCATE после цикла
 
-7.3 DAG для запуска нового эксперимента
+#### 7.2 DAG для очистки
 
-⸻
+#### 7.3 DAG для запуска нового эксперимента
 
-🔜 PHASE 8 — Backup & Recovery
+#### Результат шага
+---
 
-8.1 clickhouse-backup
+### Шаг 8 — Backup & Recovery
 
-8.2 backup в MinIO
+🎯 Цель:
 
-8.3 восстановление кластера
+#### 8.1 clickhouse-backup
 
-⸻
+#### 8.2 backup в MinIO
 
-🔜 PHASE 9 — Документация и репозиторий
+#### 8.3 восстановление кластера
 
-9.1 README.md
+#### Результат шага
+---
+
+### Шаг 9 — Документация и репозиторий
+
+🎯 Цель:
+
+#### 9.1 README.md
 	•	архитектура
 	•	схемы
 	•	инструкции запуска
 
-9.2 Скриншоты
+#### 9.2 Скриншоты
 	•	Portainer
 	•	Grafana
 	•	DataLens
 	•	нагрузка
 
-9.3 Описание эксперимента
+#### 9.3 Описание эксперимента
 	•	при INTENSITY_K = 1
 	•	при INTENSITY_K = 5
 	•	при INTENSITY_K = 10
+#### Результат шага
+---
 
-⸻
+### Шаг 10 — Презентация (10–15 минут)
+1.	Проблема
+2.	Архитектура
+3.	Инженерное решение
+4.	Демонстрация
+5.	Результаты
+6.	Ограничения
+7.	Что можно улучшить
+8.  Перспектива проекта, следующие шаги
 
-🔜 PHASE 10 — Презентация (10–15 минут)
-	1.	Проблема
-	2.	Архитектура
-	3.	Инженерное решение
-	4.	Демонстрация
-	5.	Результаты
-	6.	Ограничения
-	7.	Что можно улучшить
+
+
 
 
 ## 2. Реализация проекта
 
 
-
-
-
-
-
-
-
-
-
-
-⸻
-
-1. Проектирование хранилища данных (Data Warehouse)
+Проектирование хранилища данных (Data Warehouse)
 
 4.1 Создание базы данных
 
@@ -1303,7 +1312,7 @@ ORDER BY (region, timestamp);
 
 ⸻
 
-5. Пайплайны обработки данных
+1. Пайплайны обработки данных
 
 ⸻
 
