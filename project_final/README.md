@@ -116,18 +116,23 @@ B[Parquet Storage]
 C[MinIO S3 Storage]
 D[Apache Airflow<br>Pipeline Orchestrator]
 
+%% SOURCE CHAIN
+A --> B
+B --> C
+C --> D
+
 %% PIPELINE SPLIT
 D --> E[Streaming Pipeline]
 D --> F[Batch Pipeline]
 
-%% STREAMING
+%% STREAMING PIPELINE
 E --> G[Apache Kafka]
 G --> I[ClickHouse Kafka Engine]
 I --> K[Raw Streaming Table<br>ReplicatedMergeTree]
 K --> M1[Streaming Aggregation Layer<br>Materialized Views]
 M1 --> N1[Streaming Data Mart<br>Aggregated Tables]
 
-%% BATCH
+%% BATCH PIPELINE
 F --> H[Batch Buffer<br>Airflow DAG]
 H --> J[INSERT INTO ClickHouse]
 J --> L[Raw Batch Table<br>ReplicatedMergeTree]
@@ -140,7 +145,7 @@ O[Electricity Consumption<br>Reference Table]
 N1 --> O
 N2 --> O
 
-%% BI
+%% BI LAYER
 P[Yandex DataLens]
 
 O --> P
