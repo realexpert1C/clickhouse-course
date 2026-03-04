@@ -226,7 +226,7 @@ scrape_configs:
     static_configs:
       - targets: ['ch1:9363','ch2:9363','ch3:9363','ch4:9363']
 
-  - job_name: node
+  - job_name: node_exporter
     static_configs:
       - targets: ['node_exporter:9100']
 ```
