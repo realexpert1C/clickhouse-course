@@ -84,8 +84,6 @@ __batch__-поток имитирует классический ETL-проце�
 - возможность повторного запуска эксперимента
 - контроль над нагрузкой
 
----
-
 Дополнительный датасет
 
 Для имитации реальных аналитических задач используется дополнительный набор данных:
@@ -170,8 +168,7 @@ __Streaming__ реализуется через:
 - Materialized View
 
 Поток данных:
-
-`Airflow → Kafka → ClickHouse Kafka Engine → Raw Table`
+`Airflow → Kafka topic → Kafka Engine → Streaming MV → Raw Stream Table`
 
 Особенности streaming ingestion:
 - события поступают практически в реальном времени (каждую секунду)
@@ -199,7 +196,7 @@ Airflow формирует буфер данных и выполняет вст�
 
 Поток данных:
 
-`Airflow → Batch Buffer → INSERT INTO ClickHouse → Raw Batch Table`
+`Airflow (Batch Buffer) → INSERT INTO ClickHouse → Raw Batch Table`
 
 Это приводит к:
 - меньшему количеству частей данных
@@ -527,7 +524,11 @@ J --> K
 Что входит:
 #### Установка OS Ubuntu Server 22.04 LTS 
   Операционная система развернута из стандартного дистрибутива с сайта (https://releases.ubuntu.com/22.04/). Имя сервера - `ch-lab`
-#### Установка Docker и Docker Compose на `ch-lab` 
+#### Установка Docker и Docker Compose на `ch-lab`
+
+<details>
+<summary>Команды для установки</summary>
+
 ```bash
 sudo apt update
 sudo apt install -y ca-certificates curl gnupg
@@ -544,17 +545,25 @@ echo \
 
 sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
-Проверка:
-```bash
+
+# Проверка:
 docker --version
 docker compose version
 ```
+
+</details>
+</br>
+
+---
 
 #### Развертывание кластера ClickHouse cluster (1 shard, 2 replicas) и ClickHouse Keeper (3 nodes)
 На сервере `ch-lab`:
 
 🧱 1. Создание структуры каталогов
+
+<details>
+<summary>Команды для создания директорий</summary>
+
 ```bash
 mkdir -p ~/infra/ch-cluster
 cd ~/infra/ch-cluster
@@ -573,6 +582,9 @@ mkdir -p /data/keeper/keeper1
 mkdir -p /data/keeper/keeper2
 mkdir -p /data/keeper/keeper3
 ```
+
+</details>
+</br>
 
 ---
 
@@ -957,6 +969,7 @@ networks:
 ```bash
 CLICKHOUSE_PASSWORD=*************
 ```
+
 </details>
 </br>
 
@@ -993,6 +1006,9 @@ SELECT * FROM system.zookeeper WHERE path = '/';
 #### Развёртывание Portainer (опционально)
 Делаем, если удобнее визульный интерфейс мониторинга контейнеров
 
+<details>
+<summary>Команды для Portainer</summary>
+
 ```bash
 docker volume create portainer_data
 
@@ -1005,6 +1021,9 @@ docker run -d \
   portainer/portainer-ce:latest
 ```
 После этого Portainer доступен по: `http://<SERVER_IP>:9001`
+
+</details>
+</br>
 
 ---
 
@@ -1128,10 +1147,10 @@ docker compose up -d
 ```
 * topic для сделок
   
-Создание топиков (stream + batch)
+Создание топика для stream
 
 <details>
-<summary>Команды для создания</summary>
+<summary>Команда для создания</summary>
 
 ```bash
 docker exec -it kafka kafka-topics \
@@ -1143,16 +1162,7 @@ docker exec -it kafka kafka-topics \
   --config retention.ms=259200000 \
   --config segment.ms=3600000
 ```
-```bash
-docker exec -it kafka kafka-topics \
-  --create \
-  --topic binance_trades_batch \
-  --bootstrap-server kafka:9092 \
-  --partitions 6 \
-  --replication-factor 1 \
-  --config retention.ms=259200000 \
-  --config segment.ms=3600000
-```
+
 </details>
 </br>
 
@@ -1174,7 +1184,7 @@ docker exec -it ch2 bash -lc '</dev/tcp/kafka/9092' && echo "ch2 -> kafka OK"
 </br>
 
 
-* ClickHouse: таблицы Kafka Engine + MV -> ReplicatedMergeTree
+* ClickHouse: таблицы Streaming RAW, Batch RAW, MV
 
 <details>
 <summary>Запросы для создания базы данных demo и таблиц для вставки batch и streaming</summary>
@@ -1183,12 +1193,12 @@ docker exec -it ch2 bash -lc '</dev/tcp/kafka/9092' && echo "ch2 -> kafka OK"
 CREATE DATABASE IF NOT EXISTS demo
 ON CLUSTER replicated_cluster;
 
--- ==============
--- RAW (replicated)
--- ==============
-CREATE TABLE IF NOT EXISTS demo.binance_aggtrades_raw
-ON CLUSTER replicated_cluster
+-- ==============================================
+-- Streaming RAW (replicated) ReplicatedMergeTree
+-- ==============================================
 
+CREATE TABLE IF NOT EXISTS demo.binance_aggtrades_stream
+ON CLUSTER replicated_cluster
 (
     symbol LowCardinality(String),
     event_time DateTime64(3, 'UTC'),
@@ -1199,16 +1209,16 @@ ON CLUSTER replicated_cluster
     last_trade_id UInt64,
     is_buyer_maker UInt8,
 
-    ingest_ts DateTime64(3, 'UTC') DEFAULT now64(3),
-    source LowCardinality(String) DEFAULT 'kafka'
+    ingest_ts DateTime64(3, 'UTC') DEFAULT now64(3)
 )
-ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/demo/binance_aggtrades_raw', '{replica}')
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/demo/binance_aggtrades_stream', '{replica}')
 PARTITION BY toDate(event_time)
 ORDER BY (symbol, event_time, agg_trade_id);
 
--- ========================
--- Kafka engines (2 topics)
--- ========================
+-- ===================================
+-- Streaming Kafka Engine (replicated)
+-- ===================================
+
 CREATE TABLE IF NOT EXISTS demo.kafka_binance_stream
 ON CLUSTER replicated_cluster
 (
@@ -1228,68 +1238,52 @@ SETTINGS
     kafka_group_name = 'ch_binance_stream',
     kafka_format = 'JSONEachRow',
     kafka_num_consumers = 4,
-    kafka_max_block_size = 10000,
+    kafka_max_block_size = 5000,
     kafka_skip_broken_messages = 1;
 
-CREATE TABLE IF NOT EXISTS demo.kafka_binance_batch
+-- =====================================
+-- Streaming MV: Kafka -> Replicated RAW
+-- =====================================
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS demo.mv_stream_to_raw
+ON CLUSTER replicated_cluster
+TO demo.binance_aggtrades_stream
+AS
+SELECT
+    symbol,
+    event_time,
+    agg_trade_id,
+    price,
+    quantity,
+    first_trade_id,
+    last_trade_id,
+    is_buyer_maker,
+    now64(3) AS ingest_ts
+FROM demo.kafka_binance_stream;
+
+-- =================================================
+-- Batch RAW (replicated) ReplicatedMergeTree engine
+-- =================================================
+
+CREATE TABLE IF NOT EXISTS demo.binance_aggtrades_batch
 ON CLUSTER replicated_cluster
 (
-    symbol String,
+    symbol LowCardinality(String),
     event_time DateTime64(3, 'UTC'),
     agg_trade_id UInt64,
     price Float64,
     quantity Float64,
     first_trade_id UInt64,
     last_trade_id UInt64,
-    is_buyer_maker UInt8
+    is_buyer_maker UInt8,
+
+    ingest_ts DateTime64(3, 'UTC') DEFAULT now64(3)
 )
-ENGINE = Kafka
-SETTINGS
-    kafka_broker_list = 'kafka:9092',
-    kafka_topic_list = 'binance_trades_batch',
-    kafka_group_name = 'ch_binance_batch',
-    kafka_format = 'JSONEachRow',
-    kafka_num_consumers = 2,
-    kafka_max_block_size = 50000,
-    kafka_skip_broken_messages = 1;
-
--- ==========================
--- MV: Kafka -> Replicated RAW
--- ==========================
-CREATE MATERIALIZED VIEW IF NOT EXISTS demo.mv_stream_to_raw
-ON CLUSTER replicated_cluster
-TO demo.binance_aggtrades_raw
-AS
-SELECT
-    symbol,
-    event_time,
-    agg_trade_id,
-    price,
-    quantity,
-    first_trade_id,
-    last_trade_id,
-    is_buyer_maker,
-    now64(3) AS ingest_ts,
-    'stream' AS source
-FROM demo.kafka_binance_stream;
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS demo.mv_batch_to_raw
-ON CLUSTER replicated_cluster
-TO demo.binance_aggtrades_raw
-AS
-SELECT
-    symbol,
-    event_time,
-    agg_trade_id,
-    price,
-    quantity,
-    first_trade_id,
-    last_trade_id,
-    is_buyer_maker,
-    now64(3) AS ingest_ts,
-    'batch' AS source
-FROM demo.kafka_binance_batch;
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/demo/binance_aggtrades_batch', '{replica}')
+PARTITION BY toDate(event_time)
+ORDER BY (symbol, event_time, agg_trade_id);
 ```
+
 </details>
 </br>
 
@@ -1309,10 +1303,10 @@ FROM demo.kafka_binance_batch;
 <summary>Команды для отправки сообщения и проверки данных в таблице</summary>
 
 ```bash
-docker exec -i kafka bash -lc 'cat > /tmp/one.json <<JSON
+docker exec -it kafka bash -lc 'cat > /tmp/one.json <<JSON
 {"symbol":"BTCUSDT","event_time":"2023-07-01 00:00:00.123","agg_trade_id":1,"price":30000.1,"quantity":0.01,"first_trade_id":1,"last_trade_id":1,"is_buyer_maker":0}
 JSON
-kafka-console-producer --bootstrap-server kafka:9092 --topic binance_trades_stream < /tmp/one.json'
+kafka-console-producer --bootstrap-server kafka:9092 --topic binance_aggtrades_stream < /tmp/one.json'
 
 sleep 2
 docker exec -it ch1 clickhouse-client --user default --password mypassword -q \
