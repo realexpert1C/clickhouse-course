@@ -116,53 +116,37 @@ B[Parquet Storage]
 C[MinIO S3 Storage]
 D[Apache Airflow<br>Pipeline Orchestrator]
 
-E[Streaming Pipeline]
-F[Batch Pipeline]
+%% PIPELINE SPLIT
+D --> E[Streaming Pipeline]
+D --> F[Batch Pipeline]
 
-G[Apache Kafka]
-H[Batch Buffer<br>Airflow DAG]
+%% STREAMING
+E --> G[Apache Kafka]
+G --> I[ClickHouse Kafka Engine]
+I --> K[Raw Streaming Table<br>ReplicatedMergeTree]
+K --> M1[Streaming Aggregation Layer<br>Materialized Views]
+M1 --> N1[Streaming Data Mart<br>Aggregated Tables]
 
-I[ClickHouse Kafka Engine]
-J[INSERT INTO ClickHouse]
+%% BATCH
+F --> H[Batch Buffer<br>Airflow DAG]
+H --> J[INSERT INTO ClickHouse]
+J --> L[Raw Batch Table<br>ReplicatedMergeTree]
+L --> M2[Batch Aggregation Layer<br>Materialized Views]
+M2 --> N2[Batch Data Mart<br>Aggregated Tables]
 
-K[Raw Streaming Table<br>ReplicatedMergeTree]
-L[Raw Batch Table<br>ReplicatedMergeTree]
-
-M[Aggregation Layer<br>Materialized Views]
-N[Data Mart Layer<br>Aggregated Tables]
-
+%% REFERENCE DATA
 O[Electricity Consumption<br>Reference Table]
 
+N1 --> O
+N2 --> O
+
+%% BI
 P[Yandex DataLens]
-
-Q[Streaming Dashboard]
-R[Batch Dashboard]
-
-A --> B
-B --> C
-C --> D
-
-D --> E
-D --> F
-
-E --> G
-G --> I
-I --> K
-
-F --> H
-H --> J
-J --> L
-
-K --> M
-L --> M
-
-M --> N
-N --> O
 
 O --> P
 
-P --> Q
-P --> R
+P --> Q[Streaming Dashboard]
+P --> R[Batch Dashboard]
 ```
 
 </details>
