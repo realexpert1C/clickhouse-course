@@ -1700,33 +1700,790 @@ __Результат:__
 - подготовлена инфраструктура для воспроизводимого запуска эксперимента
 
 
-
-Я СЕЙЧАС НАХОЖУСЬ ЗДЕСЬ
 ---
 
-### Шаг 2 — Bootstrap загрузка данных через Airflow
+### Шаг 2 — Загрузка данных через Airflow
 
 🎯 Цель:
 
 Создать source-of-truth датасет (июль 2023).
 
-#### 2.1 Развернуть Airflow
-	•	docker-compose
-	•	Postgres backend
-	•	volume для dags
-	•	публичный доступ через Nginx
+#### 2.1 Развернуть Apache Airflow
+
+Apache Airflow устанавливается в контейнерах в сети `infra-net`
+
+__Подготовка директории и настройка прав__
+
+<details>
+<summary>Файл: infra/minio/docker-compose.yml</summary>
+
+```bash
+mkdir -p ~/infra/airflow
+cd ~/infra/airflow
+
+mkdir -p dags data logs plugins
+
+sudo chown -R 50000:0 dags data logs plugins
+sudo chmod -R 775 dags logs plugins
+```
+
+</details>
+</br>
+
+
+__Создание docker-compose.yaml__
+
+<details>
+<summary>Файл: infra/airflow/docker-compose.yml</summary>
+
+```yml
+# docker-compose.yaml
+# Airflow 3.1.7 (api-server) + LocalExecutor + Postgres
+# network: infra-net (external)
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: airflow-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - infra-net
+
+  airflow-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: airflow-init
+    env_file:
+      - .env
+    user: "0:0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - infra-net
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        set -e
+        echo "Creating directories..."
+        mkdir -p /opt/airflow/{dags,logs,plugins}
+        echo "Fix ownership to ${AIRFLOW_UID}:0 ..."
+        chown -R "${AIRFLOW_UID}:0" /opt/airflow/{dags,logs,plugins}
+
+        echo "Airflow version:"
+        /entrypoint airflow version
+
+        echo "DB migrate..."
+        /entrypoint airflow db migrate
+
+        echo "Create admin user (idempotent)..."
+        /entrypoint airflow users create \
+          --username "${_AIRFLOW_WWW_USER_USERNAME}" \
+          --password "${_AIRFLOW_WWW_USER_PASSWORD}" \
+          --firstname "${_AIRFLOW_WWW_USER_FIRSTNAME}" \
+          --lastname "${_AIRFLOW_WWW_USER_LASTNAME}" \
+          --role Admin \
+          --email "${_AIRFLOW_WWW_USER_EMAIL}" \
+        || true
+
+        echo "Init done."
+
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
+      - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+      
+
+  airflow-apiserver:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: airflow-apiserver
+    hostname: airflow-apiserver
+    env_file:
+      - .env
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+
+      # для чтения логов через log server scheduler-а
+      AIRFLOW__LOGGING__WORKER_LOG_SERVER_HOST: airflow-scheduler
+      AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: 8793
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+
+    ports:
+      - "8080:8080"
+    command: api-server
+    restart: unless-stopped
+    networks:
+      - infra-net
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
+      - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: airflow-scheduler
+    hostname: airflow-scheduler
+    env_file:
+      - .env
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+
+      # КРИТИЧНО: base URL с /execution/
+      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+
+      # для UI ссылок/внутренних URL — оставляем так (не влияет на открытие UI)
+      AIRFLOW__API__BASE_URL: http://airflow-apiserver:8080
+
+      # log server scheduler-а
+      AIRFLOW__LOGGING__WORKER_LOG_SERVER_HOST: airflow-scheduler
+      AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: 8793
+
+    command: scheduler
+    restart: unless-stopped
+    networks:
+      - infra-net
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
+      - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+
+  airflow-dag-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: airflow-dag-processor
+    hostname: airflow-dag-processor
+    env_file:
+      - .env
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+
+    command: dag-processor
+    restart: unless-stopped
+    networks:
+      - infra-net
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
+      - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+
+  airflow-triggerer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: airflow-triggerer
+    hostname: airflow-triggerer
+    env_file:
+      - .env
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+
+    command: triggerer
+    restart: unless-stopped
+    networks:
+      - infra-net
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
+      - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+
+volumes:
+  postgres-db-volume:
+
+networks:
+  infra-net:
+    external: true
+```
+
+</details>
+</br>
+
+__Создание окружения__
+Дополнительно в каталоге airflow где будет запускаться контейнер создаю файл окружения .env:
+
+<details>
+<summary>Файл: infra/airflow/.env</summary>
+
+```text
+AIRFLOW_IMAGE_NAME=apache/airflow:3.1.7-python3.10
+AIRFLOW_UID=50000
+AIRFLOW_PROJ_DIR=.
+AIRFLOW__API__AUTH_BACKEND=airflow.api.auth.backend.session
+
+AIRFLOW__CORE__FERNET_KEY=_EEHzk5SgyDJXHrmphwavn4rDwNQigD8Oq0J9zwWxSY=
+AIRFLOW__WEBSERVER__SECRET_KEY=9fH2kLmQ8xV4zRtY7uNp3wSa6BcDeFgHiJkLmNoPqRsTuVwXyZa1234567890AB
+AIRFLOW__API__SECRET_KEY=410c44973d9cf1ff2cc337511fd6fae26aed1939bbe956f756f457df8d27d05d
+AIRFLOW__API_AUTH__JWT_SECRET=19215a8c77489e3d34d2b480caacac7d5a5238d4e416ada843862b8b9b8921a9
+
+# Инициализация БД
+_AIRFLOW_DB_MIGRATE=true
+
+# Создание администратора при первом запуске
+_AIRFLOW_WWW_USER_CREATE=true
+_AIRFLOW_WWW_USER_USERNAME=admin
+_AIRFLOW_WWW_USER_PASSWORD=AdminLab_2025!
+_AIRFLOW_WWW_USER_FIRSTNAME=Admin
+_AIRFLOW_WWW_USER_LASTNAME=User
+_AIRFLOW_WWW_USER_EMAIL=admin@example.com
+```
+
+</details>
+</br>
+
+
+__Установка зависимостей Python__
+
+Для получения возможности установки дополнительных библиотек (которых возможно нет в стандартном контейнере Airflow)
+
+Создаю Dockerfile:
+
+<details>
+<summary>Файл: infra/airflow/Dockerfile</summary>
+
+
+```bash
+FROM apache/airflow:3.1.7-python3.10
+
+USER airflow
+
+RUN pip install --no-cache-dir \
+    clickhouse-connect==0.7.8 \
+    kafka-python==2.0.2 \
+    minio==7.2.7 \
+    requests==2.31.0 \
+    pyarrow==15.0.2
+
+```
+</details>
+</br>
+
+
+<details>
+<summary>Изменяю image (если не сделал этого ранее) в compose на build для всех сервисов Airflow:</summary>
+
+```yaml
+build:
+  context: .
+  dockerfile: Dockerfile
+```
+
+</details>
+</br>
+
+<details>
+<summary>Команды пересборки и запуска контейнеров</summary>
+
+```bash
+docker compose down
+docker compose build
+docker compose up -d
+
+# Полные пересборка и перезапуск при необходимости :
+
+docker compose down -v
+docker volume prune -f
+docker compose up airflow-init
+docker compose up -d --build
+```
+
+</details>
+</br>
+
+
+__Запуск Airflow__
+
+Инициализация БД: `docker compose up airflow-init --build`
+
+<details>
+<summary>Команда создания пользователя admin</summary>
+
+
+```bash
+docker compose exec airflow-apiserver airflow users create \
+  --username admin \
+  --firstname Admin \
+  --lastname User \
+  --role Admin \
+  --email admin@example.com \
+  --password AdminLab_2025!
+```
+
+</details>
+</br>
+
+Запуск сервисов: `docker compose up -d --build`
+
+__Вход в Web UI__
+
+http://<IP_сервера>:8080
+
+__Результат__
+Развернуты и готовы к работе Apache Airflow 3.1.7:
+- airflow apiserver 
+- airflow dag processor
+- airflow scheduler
+- airflow trigger
 
 #### 2.2 DAG: Загрузка Binance July 2023
-	•	загрузка через API
-	•	запись в staging table
-	•	экспорт в Parquet
-	•	сохранение в:
-	•	локальный volume
-	•	MinIO (опционально)
+
+<details>
+<summary>DAG: infra/airflow/dags/binance_bootstrap_dataset.py</summary>
+
+
+```python
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from datetime import datetime
+import subprocess
+import os
+import zipfile
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+from minio import Minio
+
+# -----------------------------
+# CONFIG
+# -----------------------------
+
+SYMBOLS = [
+    "BTCUSDT",
+    "ETHUSDT",
+    "BTCUSDC",
+    "ETHUSDC"
+]
+
+MONTH = "2023-07"
+
+BASE_URL = "https://data.binance.vision/data/spot/monthly/aggTrades"
+
+DATA_DIR = "/opt/airflow/data/binance"
+
+MINIO_BUCKET = "clickhouse-lab-datasets"
+MINIO_PATH = "binance/july_2023"
+
+MINIO_CLIENT = Minio(
+    "minio:9000",
+    access_key="admin",
+    secret_key="AdminLab_2025!",
+    secure=False
+)
+
+
+# -----------------------------
+# DOWNLOAD ZIP FAST (wget)
+# -----------------------------
+
+def download_zip(symbol):
+
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+    url = f"{BASE_URL}/{symbol}/{symbol}-aggTrades-{MONTH}.zip"
+    local_zip = f"{DATA_DIR}/{symbol}.zip"
+
+    subprocess.run(
+        ["wget", "-q", "-O", local_zip, url],
+        check=True
+    )
+
+    return local_zip
+
+
+# -----------------------------
+# ZIP → PARQUET STREAM
+# -----------------------------
+
+def zip_to_parquet(symbol):
+
+    local_zip = f"{DATA_DIR}/{symbol}.zip"
+    parquet_path = f"{DATA_DIR}/{symbol}.parquet"
+
+    with zipfile.ZipFile(local_zip) as z:
+        csv_name = z.namelist()[0]
+
+        with z.open(csv_name) as csv_file:
+
+            df = pd.read_csv(
+                csv_file,
+                header=None,
+                names=[
+                    "agg_trade_id",
+                    "price",
+                    "quantity",
+                    "first_trade_id",
+                    "last_trade_id",
+                    "event_time",
+                    "is_buyer_maker"
+                ]
+            )
+
+    df["symbol"] = symbol
+
+    table = pa.Table.from_pandas(df)
+
+    pq.write_table(table, parquet_path)
+
+    return parquet_path
+
+
+# -----------------------------
+# UPLOAD TO MINIO
+# -----------------------------
+
+def upload_to_minio(symbol):
+
+    parquet_path = f"{DATA_DIR}/{symbol}.parquet"
+
+    object_name = f"{MINIO_PATH}/{symbol}.parquet"
+
+    MINIO_CLIENT.fput_object(
+        MINIO_BUCKET,
+        object_name,
+        parquet_path
+    )
+
+
+# -----------------------------
+# TASK WRAPPER
+# -----------------------------
+
+def process_symbol(symbol):
+
+    print(f"Processing {symbol}")
+
+    download_zip(symbol)
+
+    zip_to_parquet(symbol)
+
+    upload_to_minio(symbol)
+
+    print(f"{symbol} DONE")
+
+
+# -----------------------------
+# DAG
+# -----------------------------
+
+default_args = {
+    "owner": "airflow",
+    "retries": 1
+}
+
+with DAG(
+
+    dag_id="binance_bootstrap_dataset",
+
+    start_date=datetime(2024,1,1),
+
+    schedule=None,
+
+    catchup=False,
+
+    default_args=default_args,
+
+    tags=["bootstrap","binance","dataset"]
+
+) as dag:
+
+    tasks = []
+
+    for symbol in SYMBOLS:
+
+        t = PythonOperator(
+            task_id=f"load_{symbol}",
+            python_callable=process_symbol,
+            op_args=[symbol]
+        )
+
+        tasks.append(t)
+
+    tasks
+```
+
+</details>
+</br>
+
+__Результат__
+
+
 
 #### 2.3 DAG: Загрузка электроэнергии
-	•	загрузка hourly
-	•	создание reference table
+
+
+Отлично — пока крутится загрузка Binance, можно спокойно сделать reference dataset electricity. Ниже даю готовый DAG + SQL для пользователя ClickHouse, как ты просил.
+
+Я беру реальный открытый dataset EIA (U.S. Energy Information Administration) — hourly demand. Для проекта нам нужен июль 2023.
+
+⸻
+
+1. Пользователь и роли ClickHouse для Airflow
+
+Мы уже обсуждали, что лучше не использовать default, а создать отдельного пользователя.
+
+Подключись к ClickHouse:
+
+docker exec -it ch1 clickhouse-client
+
+
+⸻
+
+Создание роли
+
+CREATE ROLE IF NOT EXISTS airflow_loader;
+
+
+⸻
+
+Права на базу проекта
+
+GRANT INSERT ON demo.* TO airflow_loader;
+GRANT SELECT ON demo.* TO airflow_loader;
+
+
+⸻
+
+Создание пользователя
+
+CREATE USER IF NOT EXISTS airflow
+IDENTIFIED WITH plaintext_password BY 'airflow123';
+
+
+⸻
+
+Назначение роли
+
+GRANT airflow_loader TO airflow;
+
+SET DEFAULT ROLE airflow_loader TO airflow;
+
+
+⸻
+
+Проверка
+
+SHOW GRANTS FOR airflow;
+
+
+⸻
+
+2. Таблица electricity
+
+Если ещё нет:
+
+CREATE TABLE IF NOT EXISTS demo.electricity_hourly
+(
+    timestamp DateTime('UTC'),
+    region String,
+    demand_mw Float64
+)
+ENGINE = MergeTree
+PARTITION BY toDate(timestamp)
+ORDER BY (region, timestamp);
+
+
+⸻
+
+3. DAG загрузки electricity
+
+Файл:
+
+~/infra/airflow/dags/load_electricity_dataset.py
+
+
+⸻
+
+
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+
+from datetime import datetime
+import pandas as pd
+import requests
+import io
+
+import clickhouse_connect
+
+
+DATA_URL = "https://api.eia.gov/v2/electricity/rto/region-data/data/?frequency=hourly&data[0]=value&facets[respondent][]=US48&start=2023-07-01&end=2023-07-31&sort[0][column]=period&sort[0][direction]=asc"
+
+CLICKHOUSE_HOST = "ch1"
+CLICKHOUSE_PORT = 8123
+CLICKHOUSE_USER = "airflow"
+CLICKHOUSE_PASSWORD = "airflow123"
+
+
+def load_electricity():
+
+    print("Downloading electricity dataset")
+
+    r = requests.get(DATA_URL)
+
+    data = r.json()
+
+    records = data["response"]["data"]
+
+    df = pd.DataFrame(records)
+
+    df = df.rename(columns={
+        "period": "timestamp",
+        "value": "demand_mw"
+    })
+
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+
+    df["region"] = "US"
+
+    df = df[["timestamp", "region", "demand_mw"]]
+
+    print("Connecting ClickHouse")
+
+    client = clickhouse_connect.get_client(
+        host=CLICKHOUSE_HOST,
+        port=CLICKHOUSE_PORT,
+        username=CLICKHOUSE_USER,
+        password=CLICKHOUSE_PASSWORD
+    )
+
+    client.insert_df(
+        "demo.electricity_hourly",
+        df
+    )
+
+    print("Inserted rows:", len(df))
+
+
+default_args = {
+    "owner": "airflow",
+    "start_date": datetime(2024, 1, 1)
+}
+
+
+with DAG(
+
+    dag_id="load_electricity_dataset",
+
+    default_args=default_args,
+
+    schedule=None,
+
+    catchup=False,
+
+    tags=["dataset", "electricity"]
+
+) as dag:
+
+    load = PythonOperator(
+        task_id="load_electricity_data",
+        python_callable=load_electricity
+    )
+
+
+⸻
+
+4. Библиотека для Airflow
+
+В Dockerfile нужно добавить:
+
+clickhouse-connect==0.7.8
+pandas==2.2.2
+
+Если pandas уже есть — ничего делать не нужно.
+
+Пересборка:
+
+docker compose build
+docker compose up -d
+
+
+⸻
+
+5. После запуска DAG
+
+В таблице появится:
+
+SELECT count()
+FROM demo.electricity_hourly;
+
+Ожидается примерно:
+
+~744 rows
+
+(31 день × 24 часа)
+
+⸻
+
+6. Теперь этот dataset можно использовать
+
+Для витрин:
+
+SELECT
+    t.symbol,
+    toStartOfHour(t.ts) AS hour,
+    sum(volume),
+    e.demand_mw
+FROM agg_stream_1h t
+LEFT JOIN demo.electricity_hourly e
+ON hour = e.timestamp
+
+
+⸻
+
+Маленькое улучшение (очень полезно для проекта)
+
+Я рекомендую добавить TTL:
+
+ALTER TABLE demo.electricity_hourly
+MODIFY TTL timestamp + INTERVAL 5 YEAR;
+
+
+⸻
+
+
+
 
 #### Результат шага
 
