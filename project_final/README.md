@@ -2249,16 +2249,184 @@ with DAG(
 
 __Результат__
 
-
+Датасет о сделках с основными валютами на бирже Binance загружен в S3-совместимое хранилище и готов к использованию в качестве источника данных
 
 #### 2.3 DAG: Загрузка электроэнергии
 
 
-Отлично — пока крутится загрузка Binance, можно спокойно сделать reference dataset electricity. Ниже даю готовый DAG + SQL для пользователя ClickHouse, как ты просил.
+<details>
+<summary>Таблица electricity</summary>
 
-Я беру реальный открытый dataset EIA (U.S. Energy Information Administration) — hourly demand. Для проекта нам нужен июль 2023.
+
+```sql
+
+CREATE TABLE IF NOT EXISTS demo.electricity_hourly
+ON CLUSTER replicated_cluster
+(
+    timestamp DateTime('UTC'),
+    region String,
+    demand_mw Float64
+)
+ENGINE = ReplicatedMergeTree(
+    '/clickhouse/tables/{shard}/demo/electricity_hourly',
+    '{replica}'
+)
+PARTITION BY toDate(timestamp)
+ORDER BY (region, timestamp);
+
+```
+
+</details>
+</br>
+
+---
+
+<details>
+<summary>Файл:/infra/airflow/dags/load_electricity_dataset.py</summary>
+
+
+
+```python
+from datetime import datetime  
+import pandas as pd  
+import clickhouse_connect  
+
+from airflow import DAG  
+from airflow.providers.standard.operators.python import PythonOperator  
+import os
+
+# в .env предварительно задать CLICKHOUSE_PASSWORD= 
+DATA_FILE = "/opt/airflow/data/electricity.csv"
+PASSWORD = os.getenv("CLICKHOUSE_PASSWORD")
+
+from datetime import datetime  
+import pandas as pd  
+import clickhouse_connect  
+
+from airflow import DAG  
+from airflow.providers.standard.operators.python import PythonOperator  
+
+#=============================================================#
+#   вариант подключения с использованием connections в Airflow
+from airflow.hooks.base import BaseHook
+
+conn = BaseHook.get_connection("clickhouse_demo")
+
+host = conn.host
+port = conn.port
+user = conn.login
+password = conn.password
+database = conn.schema
+#=============================================================#
+
+DATA_FILE = "/opt/airflow/data/electricity.csv"
+
+
+def load_electricity():
+
+    print("Reading EIA electricity dataset")
+
+    df = pd.read_csv(DATA_FILE)
+
+    # перевод времени
+    df["timestamp"] = pd.to_datetime(df["UTC Time at End of Hour"])
+
+    # фильтр July 2023
+    df = df[
+        (df["timestamp"] >= "2023-07-01") &
+        (df["timestamp"] < "2023-08-01")
+    ]
+
+    # нужные колонки
+    df = df[["timestamp", "Region", "Demand (MW)"]]
+
+    df = df.rename(columns={
+        "Region": "region",
+        "Demand (MW)": "demand_mw"
+    })
+
+    df = df.dropna()
+
+    rows = df.values.tolist()
+
+    print("Rows to insert:", len(rows))
+#    вариант подключения с использованием пароля, заданного в окружении
+#    client = clickhouse_connect.get_client(
+#        host="ch1",
+#        port=8123,
+#        username="default",
+#        password=PASSWORD,
+#        database="demo"
+#    )
+
+#   вариант подключения с использованием connections в Airflow
+    client = clickhouse_connect.get_client(
+        host=host,
+        port=port,
+        username=user,
+        password=password,
+        database=database
+    )
+
+    print("Cleaning table")
+
+    client.command("""
+    TRUNCATE TABLE demo.electricity_hourly
+    ON CLUSTER replicated_cluster
+    """)
+
+    print("Inserting data")
+
+    client.insert(
+        "electricity_hourly",
+        rows,
+        column_names=["timestamp", "region", "demand_mw"]
+    )
+
+    print("Inserted rows:", len(rows))
+
+
+with DAG(
+    dag_id="load_electricity_dataset",
+    start_date=datetime(2024,1,1),
+    schedule=None,
+    catchup=False,
+) as dag:
+
+    load_task = PythonOperator(
+        task_id="load_electricity_data",
+        python_callable=load_electricity
+    )
+```
+
+
+</details>
+</br>
+
+__Результат__
+
+Датасет потребления электроэнергии загружен в Clickhouse и готов к использованию в качестве словаря.
+
+---
+
+1. Библиотека для Airflow
+
+В Dockerfile нужно добавить:
+
+clickhouse-connect==0.7.8
+pandas==2.2.2
+
+Если pandas уже есть — ничего делать не нужно.
+
+Пересборка:
+
+docker compose build
+docker compose up -d
+
 
 ⸻
+
+
 
 1. Пользователь и роли ClickHouse для Airflow
 
@@ -2306,137 +2474,6 @@ SET DEFAULT ROLE airflow_loader TO airflow;
 Проверка
 
 SHOW GRANTS FOR airflow;
-
-
-⸻
-
-2. Таблица electricity
-
-Если ещё нет:
-
-CREATE TABLE IF NOT EXISTS demo.electricity_hourly
-(
-    timestamp DateTime('UTC'),
-    region String,
-    demand_mw Float64
-)
-ENGINE = MergeTree
-PARTITION BY toDate(timestamp)
-ORDER BY (region, timestamp);
-
-
-⸻
-
-3. DAG загрузки electricity
-
-Файл:
-
-~/infra/airflow/dags/load_electricity_dataset.py
-
-
-⸻
-
-
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-
-from datetime import datetime
-import pandas as pd
-import requests
-import io
-
-import clickhouse_connect
-
-
-DATA_URL = "https://api.eia.gov/v2/electricity/rto/region-data/data/?frequency=hourly&data[0]=value&facets[respondent][]=US48&start=2023-07-01&end=2023-07-31&sort[0][column]=period&sort[0][direction]=asc"
-
-CLICKHOUSE_HOST = "ch1"
-CLICKHOUSE_PORT = 8123
-CLICKHOUSE_USER = "airflow"
-CLICKHOUSE_PASSWORD = "airflow123"
-
-
-def load_electricity():
-
-    print("Downloading electricity dataset")
-
-    r = requests.get(DATA_URL)
-
-    data = r.json()
-
-    records = data["response"]["data"]
-
-    df = pd.DataFrame(records)
-
-    df = df.rename(columns={
-        "period": "timestamp",
-        "value": "demand_mw"
-    })
-
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
-
-    df["region"] = "US"
-
-    df = df[["timestamp", "region", "demand_mw"]]
-
-    print("Connecting ClickHouse")
-
-    client = clickhouse_connect.get_client(
-        host=CLICKHOUSE_HOST,
-        port=CLICKHOUSE_PORT,
-        username=CLICKHOUSE_USER,
-        password=CLICKHOUSE_PASSWORD
-    )
-
-    client.insert_df(
-        "demo.electricity_hourly",
-        df
-    )
-
-    print("Inserted rows:", len(df))
-
-
-default_args = {
-    "owner": "airflow",
-    "start_date": datetime(2024, 1, 1)
-}
-
-
-with DAG(
-
-    dag_id="load_electricity_dataset",
-
-    default_args=default_args,
-
-    schedule=None,
-
-    catchup=False,
-
-    tags=["dataset", "electricity"]
-
-) as dag:
-
-    load = PythonOperator(
-        task_id="load_electricity_data",
-        python_callable=load_electricity
-    )
-
-
-⸻
-
-4. Библиотека для Airflow
-
-В Dockerfile нужно добавить:
-
-clickhouse-connect==0.7.8
-pandas==2.2.2
-
-Если pandas уже есть — ничего делать не нужно.
-
-Пересборка:
-
-docker compose build
-docker compose up -d
 
 
 ⸻
