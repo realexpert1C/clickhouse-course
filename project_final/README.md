@@ -2779,16 +2779,30 @@ with DAG(
 
 ```sql
 SELECT
-    'stream' AS pipeline,
-    count() AS rows
-FROM demo.binance_aggtrades_stream
+    countIf(source = 'stream') AS stream_rows,
+    countIf(source = 'batch') AS batch_rows,
+    batch_rows - stream_rows AS diff
+FROM
+(
+    SELECT 'stream' AS source FROM demo.binance_aggtrades_stream
+    UNION ALL
+    SELECT 'batch' AS source FROM demo.binance_aggtrades_batch
+);
+```
+</details>
+</br>
 
-UNION ALL
+<details>
+<summary>Прверочный запрос о количестве партов в таблицах</summary>
 
+
+```sql
 SELECT
-    'batch' AS pipeline,
-    count() AS rows
-FROM demo.binance_aggtrades_batch;
+    table,
+    count() parts
+FROM system.parts
+WHERE database='demo'
+GROUP BY table;
 ```
 </details>
 </br>
@@ -2796,8 +2810,9 @@ FROM demo.binance_aggtrades_batch;
 __Результат__
 Настроены два параллельных pipilines, которые моделируют загрузку данных из хранилища в Clickhouse двумя способами:
 
-- пакетная загрузка (batch ingestion)
-- потоковая загрузка (streaming ingestion)
+- пакетная загрузка (batch ingestion) по 50000 строк или не реже, чем каждые 15 минут
+- потоковая загрузка (streaming ingestion) ежесекундно, но блоками не более, чем 5000 строк за раз
+При этом данные из источника считываются один раз в секунду - имитация реальной работы приложения
 
 Источники данных это два одинаковых датасета в хранилище Minio: `trades_stream.parquet` и `trades_batch.parquet`
 Целевые RAW таблицы в Clickhouse: `demo.binance_trades_stream` и `demo.binance_trades_batch`
@@ -2805,17 +2820,417 @@ __Результат__
 
 --- 
 
-#### 3.3 Materialized Views
-- агрегации (1m, 15m, 1h, 1d)
+#### 3.3 Aggregations and Materialized Views
+
+На данном этапе для каждого потока данных создаю по две агрегированных по временным интервалам 15 минут и 1 час таблицы:
+
+- `trades_stream_15m`
+- `trades_batch_15m`
+- `trades_stream_1h`
+- `trades_batch_1h`
+  
+И создаю 4 Materialized View для организации вставки данных из RAW таблиц:
+
+- `RAW STREAM`  ──► `stream_15m`
+- `RAW BATCH`   ──► `batch_15m`
+
+- `RAW STREAM`  ──► `stream_1h`
+- `RAW BATCH`   ──► `batch_1h`
+
+
+3.3.1. 
+<details>
+<summary>Таблица trades_stream_15m</summary>
+
+
+```sql
+CREATE TABLE IF NOT EXISTS demo.trades_stream_15m
+ON CLUSTER replicated_cluster
+(
+    symbol LowCardinality(String),
+    interval_start DateTime('UTC'),
+
+    trades_count UInt64,
+    volume Float64,
+
+    min_price Float64,
+    max_price Float64,
+    avg_price Float64,
+    vwap Float64
+)
+ENGINE = ReplicatedMergeTree(
+    '/clickhouse/tables/{shard}/demo/trades_stream_15m',
+    '{replica}'
+)
+PARTITION BY toDate(interval_start)
+ORDER BY (symbol, interval_start);
+```
+</details>
+</br>
+
+3.3.2.
+<details>
+<summary>Таблица trades_batch_15m</summary>
+
+
+```sql
+CREATE TABLE IF NOT EXISTS demo.trades_batch_15m
+ON CLUSTER replicated_cluster
+(
+    symbol LowCardinality(String),
+    interval_start DateTime('UTC'),
+
+    trades_count UInt64,
+    volume Float64,
+
+    min_price Float64,
+    max_price Float64,
+    avg_price Float64,
+    vwap Float64
+)
+ENGINE = ReplicatedMergeTree(
+    '/clickhouse/tables/{shard}/demo/trades_batch_15m',
+    '{replica}'
+)
+PARTITION BY toDate(interval_start)
+ORDER BY (symbol, interval_start);
+```
+</details>
+</br>
+
+3.3.3.
+<details>
+<summary>Таблица trades_stream_1h</summary>
+
+
+```sql
+CREATE TABLE IF NOT EXISTS demo.trades_stream_1h
+ON CLUSTER replicated_cluster
+(
+    symbol LowCardinality(String),
+    interval_start DateTime('UTC'),
+
+    trades_count UInt64,
+    volume Float64,
+
+    min_price Float64,
+    max_price Float64,
+    avg_price Float64,
+    vwap Float64
+)
+ENGINE = ReplicatedMergeTree(
+    '/clickhouse/tables/{shard}/demo/trades_stream_1h',
+    '{replica}'
+)
+PARTITION BY toDate(interval_start)
+ORDER BY (symbol, interval_start);
+```
+</details>
+</br>
+
+3.3.4
+<details>
+<summary>Таблица trades_batch_1h</summary>
+
+
+```sql
+CREATE TABLE IF NOT EXISTS demo.trades_batch_1h
+ON CLUSTER replicated_cluster
+(
+    symbol LowCardinality(String),
+    interval_start DateTime('UTC'),
+
+    trades_count UInt64,
+    volume Float64,
+
+    min_price Float64,
+    max_price Float64,
+    avg_price Float64,
+    vwap Float64
+)
+ENGINE = ReplicatedMergeTree(
+    '/clickhouse/tables/{shard}/demo/trades_batch_1h',
+    '{replica}'
+)
+PARTITION BY toDate(interval_start)
+ORDER BY (symbol, interval_start);
+```
+</details>
+</br>
+---
+
+3.3.5.
+<details>
+<summary>Materialized View mv_stream_15m</summary>
+
+
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS demo.mv_stream_15m
+ON CLUSTER replicated_cluster
+TO demo.trades_stream_15m
+AS
+SELECT
+    symbol,
+    toStartOfInterval(event_time, INTERVAL 15 MINUTE) AS interval_start,
+
+    count() AS trades_count,
+    sum(quantity) AS volume,
+
+    min(price) AS min_price,
+    max(price) AS max_price,
+    avg(price) AS avg_price,
+
+    sum(price * quantity) / sum(quantity) AS vwap
+
+FROM demo.binance_aggtrades_stream
+GROUP BY
+    symbol,
+    interval_start;
+```
+</details>
+</br>
+
+3.3.6.
+<details>
+<summary>Materialized View mv_batch_15m</summary>
+
+
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS demo.mv_batch_15m
+ON CLUSTER replicated_cluster
+TO demo.trades_batch_15m
+AS
+SELECT
+    symbol,
+    toStartOfInterval(event_time, INTERVAL 15 MINUTE) AS interval_start,
+
+    count() AS trades_count,
+    sum(quantity) AS volume,
+
+    min(price) AS min_price,
+    max(price) AS max_price,
+    avg(price) AS avg_price,
+
+    sum(price * quantity) / sum(quantity) AS vwap
+
+FROM demo.binance_aggtrades_batch
+GROUP BY
+    symbol,
+    interval_start;
+```
+</details>
+</br>
+
+3.3.7.
+<details>
+<summary>Materialized View mv_stream_1h</summary>
+
+
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS demo.mv_stream_1h
+ON CLUSTER replicated_cluster
+TO demo.trades_stream_1h
+AS
+SELECT
+    symbol,
+    toStartOfHour(event_time) AS interval_start,
+
+    count() AS trades_count,
+    sum(quantity) AS volume,
+
+    min(price) AS min_price,
+    max(price) AS max_price,
+    avg(price) AS avg_price,
+
+    sum(price * quantity) / sum(quantity) AS vwap
+
+FROM demo.binance_aggtrades_stream
+GROUP BY
+    symbol,
+    interval_start;
+```
+</details>
+</br>
+
+
+3.3.8.
+<details>
+<summary>Materialized View mv_batch_1h</summary>
+
+
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS demo.mv_batch_1h
+ON CLUSTER replicated_cluster
+TO demo.trades_batch_1h
+AS
+SELECT
+    symbol,
+    toStartOfHour(event_time) AS interval_start,
+
+    count() AS trades_count,
+    sum(quantity) AS volume,
+
+    min(price) AS min_price,
+    max(price) AS max_price,
+    avg(price) AS avg_price,
+
+    sum(price * quantity) / sum(quantity) AS vwap
+
+FROM demo.binance_aggtrades_batch
+GROUP BY
+    symbol,
+    interval_start;
+```
+</details>
+</br>
+
+---
 
 #### 3.4 Data Mart
-- таблицы с JOIN:
-- trades
-- weather
-- electricity
+Таблицы с JOIN trades + electricity: 
+- `trades_energy_stream`
+- `trades_energy_batch`
+  
+и две MW для вставки данных
 
-#### Результат шага
+3.4.1.
+<details>
+<summary>Таблица витрины STREAM - trades_energy_stream</summary>
 
+
+```sql
+CREATE TABLE IF NOT EXISTS demo.trades_energy_stream
+ON CLUSTER replicated_cluster
+(
+    interval_start DateTime('UTC'),
+
+    symbol LowCardinality(String),
+
+    trades_count UInt64,
+
+    volume Float64,
+
+    avg_price Float64,
+
+    vwap Float64,
+
+    electricity_mw Float64
+)
+ENGINE = ReplicatedMergeTree(
+    '/clickhouse/tables/{shard}/demo/trades_energy_stream',
+    '{replica}'
+)
+PARTITION BY toDate(interval_start)
+ORDER BY (symbol, interval_start);
+```
+</details>
+</br>
+
+3.4.2.
+<details>
+<summary>Таблица витрины BATCH - trades_energy_batch</summary>
+
+
+```sql
+CREATE TABLE IF NOT EXISTS demo.trades_energy_batch
+ON CLUSTER replicated_cluster
+(
+    interval_start DateTime('UTC'),
+
+    symbol LowCardinality(String),
+
+    trades_count UInt64,
+
+    volume Float64,
+
+    avg_price Float64,
+
+    vwap Float64,
+
+    electricity_mw Float64
+)
+ENGINE = ReplicatedMergeTree(
+    '/clickhouse/tables/{shard}/demo/trades_energy_batch',
+    '{replica}'
+)
+PARTITION BY toDate(interval_start)
+ORDER BY (symbol, interval_start);
+```
+</details>
+</br>
+
+3.4.3.
+<details>
+<summary>Materialized View для STREAM - mv_trades_energy_stream</summary>
+
+
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS demo.mv_trades_energy_stream
+ON CLUSTER replicated_cluster
+TO demo.trades_energy_stream
+AS
+SELECT
+    t.interval_start,
+    t.symbol,
+    t.trades_count,
+    t.volume,
+    t.avg_price,
+    t.vwap,
+    e.electricity_mw
+FROM demo.trades_stream_1h t
+LEFT JOIN
+(
+    SELECT
+        timestamp,
+        sum(demand_mw) AS electricity_mw
+    FROM demo.electricity_hourly
+    GROUP BY timestamp
+) e
+ON t.interval_start = e.timestamp;
+```
+</details>
+</br>
+
+3.4.4.
+<details>
+<summary>Materialized View для BATCH - mv_trades_energy_batch</summary>
+
+
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS demo.mv_trades_energy_batch
+ON CLUSTER replicated_cluster
+TO demo.trades_energy_batch
+AS
+SELECT
+    t.interval_start,
+    t.symbol,
+    t.trades_count,
+    t.volume,
+    t.avg_price,
+    t.vwap,
+    e.electricity_mw
+FROM demo.trades_batch_1h t
+LEFT JOIN
+(
+    SELECT
+        timestamp,
+        sum(demand_mw) AS electricity_mw
+    FROM demo.electricity_hourly
+    GROUP BY timestamp
+) e
+ON t.interval_start = e.timestamp;
+```
+</details>
+</br>
+
+
+__Результаты шага__
+
+- Спроектирована и реализована многослойная архитектура хранения данных в ClickHouse: RAW → Aggregation → Data Mart.
+- Созданы RAW-таблицы для потоковой и пакетной загрузки данных и настроены Materialized Views для автоматического формирования агрегатов (15 минут и 1 час).
+- На уровне Data Mart построены витрины данных с объединением торговых данных и почасового потребления электроэнергии.
+
+Полученная схема обеспечивает подготовку данных для аналитики и последующей визуализации в BI-инструменте.
 
 
 ---
