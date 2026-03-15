@@ -3241,19 +3241,198 @@ __Результаты шага__
 
 Сделать систему наблюдаемой.
 
+Добавляю в Grafana следующие метрики
+
 #### 4.1 ClickHouse metrics
-- insert rate
-- parts
-- merges backlog
+- `Insert` rate Количество INSERT-запросов в секунду по каждой ноде ClickHouse
+- `Active Parts` - Количество активных частей на каждой ноде ClickHouse
+- `Merge backlog` — Количество задач в очереди слияния частей данных (merge)
+- `Query Latency` - Длительность выполнения запросов (в секундах)
 
 #### 4.2 Kafka metrics
-- lag
+- consumer lag
 - throughput
+Kafka сам не отдаёт метрики в формате Prometheus. Поэтому используется специальный сервис: `Kafka Exporter`. Он читает Kafka и публикует метрики: http://kafka-exporter:9308/metrics . Prometheus потом их собирает.
 
-#### 4.3 Replay metrics
+__Развернуть Kafka Exporter__
+
+На локальном сервере создаю каталог: ``` mkdir -p ~/infra/monitoring/kafka-exporter```
+В этом каталоге 
+
+<details>
+<summary>Файл: docker-compose.yml</summary>
+
+```yml
+services:
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    container_name: kafka-exporter
+
+    command:
+      - --kafka.server=kafka:9092
+
+    ports:
+      - "9308:9308"
+
+    restart: unless-stopped
+
+    networks:
+      - infra-net
+
+
+networks:
+  infra-net:
+    external: true
+```
+</details>
+</br>
+
+
+---
+
+Что означает конфигурация `--kafka.server=kafka:9092`
+
+Exporter подключается к Kafka внутри docker сети.
+
+`9308` - это порт метрик Prometheus.
+
+Запускаю контейнер `kafka-exporter`
+
+Проверить метрики - на сервере: `curl http://localhost:9308/metrics | head`
+
+Ожидается вывод примерно такого вида:
+```bash
+# HELP kafka_brokers Number of Brokers in the Kafka Cluster.
+# TYPE kafka_brokers gauge
+kafka_brokers 1
+```
+
+__Подключить Kafka exporter к Prometheus__
+
+Открыть конфиг Prometheus на сервере: `nano ~/infra/monitoring/prometheus/prometheus.yml`
+Добавить новый job
+
+В конец scrape_configs:
+```yml
+  - job_name: kafka_exporter
+    static_configs:
+      - targets:
+          - kafka-exporter:9308
+```
+Перезапустить Prometheus: `docker restart prometheus`
+Проверить targets. Открыть в браузере: `http://<SERVER_IP>:9090`
+
+Дальше: `Status → Targets`. Ожидается новый target: `kafka-exporter:9308` и статус: `UP`
+
+__Панели Kafka metrics в Grafana:__
+
+- Consumer lag — это отставание потребителя Kafka от продюсера (количество еще не обработанных сообщений)
+- Throughput - Количество сообщений в секунду через Kafka
+
+--- 
+
+#### 4.3. Node Exporter (System)
+
+- CPU usage - загрузка процессора сервера
+- RAM usage - использование оперативной памяти
+- Disk Write Throughput - сколько данных сервер записывает на диск в секунду
+- Disk Usage % - процент заполнения жесткого диска
+  
+#### 4.4. Проверочные SQL-запросы
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+
+#### 4.3 Apache Airflow
+
+__Поднять StatsD exporter для мониторинга Airflow__
+Создать папку на сервере: ```mkdir -p ~/infra/monitoring/airflow-metrics``` и в ней -
+
+<details>
+<summary>Файл: docker-compose.yml</summary>
+
+```yml
+services:
+
+  statsd-exporter:
+    image: prom/statsd-exporter
+    container_name: statsd-exporter
+
+    ports:
+      - "9103:9102"
+      - "9125:9125/udp"
+
+    restart: unless-stopped
+
+    networks:
+      - infra-net
+
+
+networks:
+  infra-net:
+    external: true
+```
+</details>
+</br>
+
+Запустить контейнер и проверить endpoint ```curl http://localhost:9103/metrics | head```
+
+Должны появиться метрики Prometheus.
+
+__Включить StatsD в Airflow__
+
+В файл `.env` Airflow в раздел метрик добавить строки и перезапустить Airflow:
+
+```bash
+AIRFLOW__METRICS__STATSD_ON=True
+AIRFLOW__METRICS__STATSD_HOST=statsd-exporter
+AIRFLOW__METRICS__STATSD_PORT=9125
+AIRFLOW__METRICS__STATSD_PREFIX=airflow
+```
+Перезапуск:
+```bash
+docker compose down
+docker compose up -d --build
+```
+Проверить, что метрики появились: `curl http://localhost:9103/metrics | grep airflow`
+
+__Подключить statsd-exporter в Prometheus__
+
+Открыть конфиг Prometheus `nano ~/infra/monitoring/prometheus/prometheus.yml`
+
+В блоке `scrape_configs` добавь новый job:
+```yml
+- job_name: airflow_exporter
+  static_configs:
+    - targets:
+        - statsd-exporter:9102
+```
+Важно: использовать внутренний порт контейнера `9102`. Перезапустить `docker restart prometheus`
+
+__Airflow Metrics__
+
+В ходе выполнения работы выявилось нецелесообразность визуализации - нечего выводить для пользы проекта
+
 - events/sec
 - batch size
 - error rate
+
+
+
 
 #### 4.4 Grafana dashboards
 - unified ingestion experiment dashboard
@@ -3273,7 +3452,7 @@ __Результаты шага__
 
 ---
 
-### Шаг 5 — Визуализация
+### Шаг 5 — Визуализация BI
 
 🎯 Цель:
 
@@ -3296,7 +3475,7 @@ __Результаты шага__
 
 🎯 Цель:
 
-#### 6.1 TTL или TRUNCATE после цикла
+#### 6.1 TRUNCATE после цикла
 
 #### 6.2 DAG для очистки
 
@@ -3309,24 +3488,24 @@ __Результаты шага__
 🎯 Цель:
 
 
-1. Реализовать мониторинг по метрикам на данных, загруженных за 7 дней (интенсивность загрузки x100)
+1. Реализовать мониторинг по метрикам на данных, загружаемых с интенсивностью x5 к базовой (то есть количество строк в секунду выше в 5 раз)
 
-2. Реализовать мониторинг по метрикам на данных, загруженных за 21 день (интенсивность загрузки x300)
+2. Реализовать мониторинг по метрикам на данных, загружаемых с интенсивностью x10 к базовой (то есть количество строк в секунду выше в 10 раз)
 
-Сделать сравнительную таблицу между batch и streaming для двух экспериментов 
+Сделать сравнительную таблицу между batch и streaming для двух экспериментов и выводы о возможном пороге деградации инфраструктуры.
 
 #### Результат шага
 ---
 
 ### Шаг 8 — Презентация (10–15 минут)
-1.	Проблема
-2.	Архитектура
-3.	Инженерное решение
-4.	Демонстрация
-5.	Результаты
-6.	Ограничения
-7.	Что можно улучшить
-8.  Перспектива проекта, следующие шаги
+1. Проблема
+2. Архитектура
+3. Инженерное решение
+4. Демонстрация
+5. Результаты
+6. Ограничения
+7. Что можно улучшить
+8. Перспектива проекта, следующие шаги
 9. Пайплайны обработки данных
 10. Мониторинг
 
@@ -3339,9 +3518,6 @@ __Результаты шага__
 	•	метрики ClickHouse
 	•	задержка потребителя Kafka (consumer lag)
 
-📸 [МЕСТО ДЛЯ СКРИНШОТА: prometheus_targets.png]
-
-⸻
 
 Grafana
 
@@ -3352,30 +3528,6 @@ Grafana
 	•	нагрузка CPU
 	•	задержки выполнения запросов
 
-📸 [МЕСТО ДЛЯ СКРИНШОТА: grafana_dashboard.png]
-
-⸻
-
-6.3 Оповещения (Alerts)
-
-⚠ Планируется реализовать:
-	•	превышение размера очереди вставок
-	•	высокая загрузка CPU
-	•	рост задержки Kafka
-
-⸻
-
-7. Моделирование нагрузки
-
-Планируется реализация регулируемых параметров:
-
-Параметр	Назначение
-TIME_SCALE	ускорение воспроизведения исторических данных
-INTENSITY_K	коэффициент увеличения плотности событий
-
-Это позволит определить порог деградации инфраструктуры.
-
-⸻
 
 
 1.  План сравнения Batch и Streaming
