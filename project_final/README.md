@@ -2502,12 +2502,14 @@ docker exec -it ch1 clickhouse-client --user default --password mypassword -q \
 ```python
 from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
-from airflow.sdk.bases.hook import BaseHook
+from airflow.hooks.base import BaseHook
 
 from datetime import datetime
 import pandas as pd
+import os
 import json
 import time
+import logging
 
 from minio import Minio
 from kafka import KafkaProducer
@@ -2518,24 +2520,48 @@ import clickhouse_connect
 # CONFIG
 # =========================
 
-MINIO_BUCKET = "clickhouse-lab-datasets"
+DATA_DIR = "/opt/airflow/data"
+SPOOL_DIR = "/opt/airflow/spool"
 
-STREAM_OBJECT = "binance/july_2023/trades_stream.parquet"
-BATCH_OBJECT = "binance/july_2023/trades_batch.parquet"
-
-LOCAL_STREAM = "/opt/airflow/data/trades_stream.parquet"
-LOCAL_BATCH = "/opt/airflow/data/trades_batch.parquet"
-
-KAFKA_TOPIC = "binance_trades_stream"
+STREAM_FILE = f"{DATA_DIR}/trades_stream.parquet"
+BATCH_FILE = f"{DATA_DIR}/trades_batch.parquet"
 
 STREAM_BLOCK = 5000
 BATCH_BLOCK = 50000
+BATCH_TIMEOUT = 900
 
-BATCH_TIMEOUT = 900   # 15 minutes
+KAFKA_TOPIC = "binance_trades_stream"
+
+MAX_RUNTIME = 31 * 24 * 3600
 
 
 # =========================
-# MINIO CLIENT
+# LOGGING
+# =========================
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
+# =========================
+# CLICKHOUSE (через Airflow)
+# =========================
+
+def get_ch_client():
+
+    conn = BaseHook.get_connection("clickhouse_demo")
+
+    return clickhouse_connect.get_client(
+        host=conn.host,
+        port=conn.port,
+        username=conn.login,
+        password=conn.password,
+        database=conn.schema
+    )
+
+
+# =========================
+# MINIO
 # =========================
 
 minio_client = Minio(
@@ -2547,20 +2573,7 @@ minio_client = Minio(
 
 
 # =========================
-# CLICKHOUSE CONNECTION
-# =========================
-
-conn = BaseHook.get_connection("clickhouse_demo")
-
-host = conn.host
-port = conn.port
-user = conn.login
-password = conn.password
-database = conn.schema
-
-
-# =========================
-# KAFKA PRODUCER
+# KAFKA
 # =========================
 
 producer = KafkaProducer(
@@ -2570,162 +2583,224 @@ producer = KafkaProducer(
 
 
 # =========================
-# DOWNLOAD DATASETS
+# DOWNLOAD
 # =========================
 
-def download_datasets():
+def download():
 
-    print("Downloading datasets from MinIO")
+    logger.info("Downloading datasets")
 
     minio_client.fget_object(
-        MINIO_BUCKET,
-        STREAM_OBJECT,
-        LOCAL_STREAM
+        "clickhouse-lab-datasets",
+        "binance/july_2023/trades_stream.parquet",
+        STREAM_FILE
     )
 
     minio_client.fget_object(
-        MINIO_BUCKET,
-        BATCH_OBJECT,
-        LOCAL_BATCH
+        "clickhouse-lab-datasets",
+        "binance/july_2023/trades_batch.parquet",
+        BATCH_FILE
     )
 
-    print("Datasets downloaded")
+    os.makedirs(SPOOL_DIR, exist_ok=True)
+
+    logger.info("Download completed")
 
 
 # =========================
-# STREAMING PIPELINE
+# PRODUCER
 # =========================
 
-def streaming_pipeline():
+def producer_task():
 
-    print("Streaming pipeline started")
+    logger.info("Producer started")
 
-    df = pd.read_parquet(LOCAL_STREAM)
-
+    df = pd.read_parquet(STREAM_FILE)
     df = df.sort_values("event_time")
 
-    buffer = []
+    df["second"] = df["event_time"].dt.floor("s")
 
-    for _, r in df.iterrows():
+    grouped = dict(tuple(df.groupby("second")))
+    seconds = sorted(grouped.keys())
 
-        msg = {
-            "symbol": r["symbol"],
-            "event_time": r["event_time"].strftime("%Y-%m-%d %H:%M:%S.%f"),
-            "agg_trade_id": int(r["agg_trade_id"]),
-            "price": float(r["price"]),
-            "quantity": float(r["quantity"]),
-            "first_trade_id": int(r["first_trade_id"]),
-            "last_trade_id": int(r["last_trade_id"]),
-            "is_buyer_maker": int(r["is_buyer_maker"])
-        }
+    logger.info(f"Total seconds: {len(seconds)}")
 
-        buffer.append(msg)
+    for sec in seconds:
 
-        if len(buffer) >= STREAM_BLOCK:
+        path = f"{SPOOL_DIR}/{sec}.parquet"
+        grouped[sec].to_parquet(path)
 
-            for m in buffer:
-                producer.send(KAFKA_TOPIC, m)
+        logger.info(f"[PRODUCER] {sec}")
 
-            producer.flush()
+        time.sleep(1)
 
-            print("Sent to Kafka:", len(buffer))
+    with open(f"{SPOOL_DIR}/_DONE", "w") as f:
+        f.write("done")
 
-            buffer = []
-
-            time.sleep(1)
-
-    if buffer:
-
-        for m in buffer:
-            producer.send(KAFKA_TOPIC, m)
-
-        producer.flush()
-
-        print("Final Kafka batch:", len(buffer))
+    logger.info("Producer finished")
 
 
 # =========================
-# BATCH PIPELINE
+# STREAM
 # =========================
 
-def batch_pipeline():
+def stream_task():
 
-    print("Batch pipeline started")
+    logger.info("Stream started")
 
-    df = pd.read_parquet(LOCAL_BATCH)
+    processed = set()
+    start_time = time.time()
 
-    df = df.sort_values("event_time")
+    done_file = f"{SPOOL_DIR}/_DONE"
 
-    client = clickhouse_connect.get_client(
-        host=host,
-        port=port,
-        username=user,
-        password=password,
-        database=database
-    )
+    while True:
 
+        if time.time() - start_time > MAX_RUNTIME:
+            logger.warning("Stream timeout")
+            break
+
+        files = sorted([f for f in os.listdir(SPOOL_DIR) if f.endswith(".parquet")])
+
+        for f in files:
+
+            if f in processed:
+                continue
+
+            df = pd.read_parquet(f"{SPOOL_DIR}/{f}")
+
+            rows = []
+
+            for _, r in df.iterrows():
+                rows.append({
+                    "symbol": r["symbol"],
+                    "event_time": r["event_time"].strftime("%Y-%m-%d %H:%M:%S.%f"),
+                    "agg_trade_id": int(r["agg_trade_id"]),
+                    "price": float(r["price"]),
+                    "quantity": float(r["quantity"]),
+                    "first_trade_id": int(r["first_trade_id"]),
+                    "last_trade_id": int(r["last_trade_id"]),
+                    "is_buyer_maker": int(r["is_buyer_maker"])
+                })
+
+            for i in range(0, len(rows), STREAM_BLOCK):
+
+                chunk = rows[i:i + STREAM_BLOCK]
+
+                for msg in chunk:
+                    producer.send(KAFKA_TOPIC, msg)
+
+                producer.flush()
+
+            processed.add(f)
+
+            logger.info(f"[STREAM] {f} rows={len(rows)}")
+
+        if os.path.exists(done_file) and len(files) == len(processed):
+            logger.info("Stream finished")
+            break
+
+        time.sleep(1)
+
+
+# =========================
+# BATCH
+# =========================
+
+def batch_task():
+
+    logger.info("Batch started")
+
+    client = get_ch_client()
+
+    processed = set()
     buffer = []
+    last_insert = time.time()
+    start_time = time.time()
 
-    last_insert_time = time.time()
+    done_file = f"{SPOOL_DIR}/_DONE"
 
-    for _, r in df.iterrows():
+    while True:
 
-        buffer.append([
-            r["symbol"],
-            r["event_time"],
-            int(r["agg_trade_id"]),
-            float(r["price"]),
-            float(r["quantity"]),
-            int(r["first_trade_id"]),
-            int(r["last_trade_id"]),
-            int(r["is_buyer_maker"])
-        ])
+        if time.time() - start_time > MAX_RUNTIME:
+            logger.warning("Batch timeout")
+            break
+
+        files = sorted([f for f in os.listdir(SPOOL_DIR) if f.endswith(".parquet")])
+
+        for f in files:
+
+            if f in processed:
+                continue
+
+            df = pd.read_parquet(f"{SPOOL_DIR}/{f}")
+
+            for _, r in df.iterrows():
+
+                buffer.append([
+                    r["symbol"],
+                    r["event_time"],
+                    int(r["agg_trade_id"]),
+                    float(r["price"]),
+                    float(r["quantity"]),
+                    int(r["first_trade_id"]),
+                    int(r["last_trade_id"]),
+                    int(r["is_buyer_maker"])
+                ])
+
+            processed.add(f)
+
+            logger.info(f"[BATCH] {f} buffer={len(buffer)}")
 
         now = time.time()
 
-        if len(buffer) >= BATCH_BLOCK or (now - last_insert_time) >= BATCH_TIMEOUT:
+        if len(buffer) >= BATCH_BLOCK or (now - last_insert) >= BATCH_TIMEOUT:
 
-            client.insert(
-                "binance_aggtrades_batch",
-                buffer,
-                column_names=[
-                    "symbol",
-                    "event_time",
-                    "agg_trade_id",
-                    "price",
-                    "quantity",
-                    "first_trade_id",
-                    "last_trade_id",
-                    "is_buyer_maker"
-                ]
-            )
+            if buffer:
 
-            print("Inserted batch:", len(buffer))
+                client.insert(
+                    "binance_aggtrades_batch",
+                    buffer,
+                    column_names=[
+                        "symbol",
+                        "event_time",
+                        "agg_trade_id",
+                        "price",
+                        "quantity",
+                        "first_trade_id",
+                        "last_trade_id",
+                        "is_buyer_maker"
+                    ]
+                )
 
-            buffer = []
+                logger.info(f"[BATCH INSERT] rows={len(buffer)}")
 
-            last_insert_time = now
+                buffer = []
+                last_insert = now
 
-            time.sleep(1)
+        if os.path.exists(done_file) and len(files) == len(processed):
 
-    if buffer:
+            if buffer:
+                client.insert(
+                    "binance_aggtrades_batch",
+                    buffer,
+                    column_names=[
+                        "symbol",
+                        "event_time",
+                        "agg_trade_id",
+                        "price",
+                        "quantity",
+                        "first_trade_id",
+                        "last_trade_id",
+                        "is_buyer_maker"
+                    ]
+                )
 
-        client.insert(
-            "binance_aggtrades_batch",
-            buffer,
-            column_names=[
-                "symbol",
-                "event_time",
-                "agg_trade_id",
-                "price",
-                "quantity",
-                "first_trade_id",
-                "last_trade_id",
-                "is_buyer_maker"
-            ]
-        )
+                logger.info(f"[FINAL INSERT] rows={len(buffer)}")
 
-        print("Final batch insert:", len(buffer))
+            logger.info("Batch finished")
+            break
+
+        time.sleep(1)
 
 
 # =========================
@@ -2733,39 +2808,34 @@ def batch_pipeline():
 # =========================
 
 with DAG(
-
-    dag_id="binance_replay_pipelines",
-
-    start_date=datetime(2024,1,1),
-
+    dag_id="binance_replay_sync",
+    start_date=datetime(2024, 1, 1),
     schedule=None,
-
     catchup=False,
-
-    tags=["binance","streaming","batch"]
-
+    tags=["binance"]
 ) as dag:
 
-
-    download = PythonOperator(
-        task_id="download_datasets",
-        python_callable=download_datasets
+    download_op = PythonOperator(
+        task_id="download",
+        python_callable=download
     )
 
-
-    stream = PythonOperator(
-        task_id="streaming_pipeline",
-        python_callable=streaming_pipeline
+    producer_op = PythonOperator(
+        task_id="producer",
+        python_callable=producer_task
     )
 
-
-    batch = PythonOperator(
-        task_id="batch_pipeline",
-        python_callable=batch_pipeline
+    stream_op = PythonOperator(
+        task_id="stream",
+        python_callable=stream_task
     )
 
+    batch_op = PythonOperator(
+        task_id="batch",
+        python_callable=batch_task
+    )
 
-    download >> [stream, batch]
+    download_op >> [producer_op, stream_op, batch_op]
 ```
 
 </details>
@@ -3339,9 +3409,52 @@ __Панели Kafka metrics в Grafana:__
 - Disk Write Throughput - сколько данных сервер записывает на диск в секунду
 - Disk Usage % - процент заполнения жесткого диска
   
-#### 4.4. Проверочные SQL-запросы
+#### 4.4. Проверочные SQL-запросы (ClickHouse)
 
+🎯 Цель шага 4.4
 
+Добавить SQL-запросы для анализа ClickHouse, которые покажут:
+- нагрузку
+- деградацию
+- разницу batch vs streaming
+
+ClickHouse даёт много через:
+
+- system.tables
+- system.parts
+- system.merges
+- system.query_log
+##### Query #1 — Insert rate (реальный)
+
+📊 Что показывает
+Сколько строк в секунду реально вставляется
+
+```SQL
+SELECT
+    toStartOfMinute(event_time) AS minute,
+    count() AS inserts,
+    sum(written_rows) AS rows_inserted
+FROM system.query_log
+WHERE type = 'QueryFinish'
+  AND query_kind = 'Insert'
+  AND event_time >= now() - INTERVAL 1 HOUR
+GROUP BY minute
+ORDER BY minute
+```
+|Поле|Что значит|
+|----|----------|
+|minute|время|
+|inserts|число insert-запросов|
+|rows_inserted|сколько строк реально вставили|
+
+---
+
+👉 скажи “Готово”
+и мы сделаем следующий запрос:
+
+Parts explosion (самая важная метрика для стриминга)
+
+Это прям 🔥 момент для защиты.
 
 
 
