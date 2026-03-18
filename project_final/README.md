@@ -3311,17 +3311,17 @@ __Результаты шага__
 
 Сделать систему наблюдаемой.
 
-Добавляю в Grafana следующие метрики
+Добавляю в __Grafana__ дашборд `Batch vs Streaming`, в котором вывожу следующие метрики
 
 #### 4.1 ClickHouse metrics
-- `Insert` rate Количество INSERT-запросов в секунду по каждой ноде ClickHouse
+- `Insert rate` Количество INSERT-запросов в секунду по каждой ноде ClickHouse
 - `Active Parts` - Количество активных частей на каждой ноде ClickHouse
 - `Merge backlog` — Количество задач в очереди слияния частей данных (merge)
 - `Query Latency` - Длительность выполнения запросов (в секундах)
 
 #### 4.2 Kafka metrics
-- consumer lag
-- throughput
+- `consumer lag`
+- `throughput`
 Kafka сам не отдаёт метрики в формате Prometheus. Поэтому используется специальный сервис: `Kafka Exporter`. Он читает Kafka и публикует метрики: http://kafka-exporter:9308/metrics . Prometheus потом их собирает.
 
 __Развернуть Kafka Exporter__
@@ -3404,73 +3404,214 @@ __Панели Kafka metrics в Grafana:__
 
 #### 4.3. Node Exporter (System)
 
-- CPU usage - загрузка процессора сервера
-- RAM usage - использование оперативной памяти
+- CPU usage % - загрузка процессора сервера
+- RAM usage % - использование оперативной памяти
 - Disk Write Throughput - сколько данных сервер записывает на диск в секунду
 - Disk Usage % - процент заполнения жесткого диска
   
 #### 4.4. Проверочные SQL-запросы (ClickHouse)
 
-🎯 Цель шага 4.4
+##### Query 1. ДЕГРАДАЦИЯ: parts vs merges (pressure snapshot)
 
-Добавить SQL-запросы для анализа ClickHouse, которые покажут:
-- нагрузку
-- деградацию
-- разницу batch vs streaming
+🎯 Цель: понять — система переваривает поток или захлебывается
 
-ClickHouse даёт много через:
 
-- system.tables
-- system.parts
-- system.merges
-- system.query_log
-##### Query #1 — Insert rate (реальный)
-
-📊 Что показывает
-Сколько строк в секунду реально вставляется
+<details>
+<summary>Содеражние Query 1</summary>
 
 ```SQL
 SELECT
-    toStartOfMinute(event_time) AS minute,
-    count() AS inserts,
-    sum(written_rows) AS rows_inserted
-FROM system.query_log
-WHERE type = 'QueryFinish'
-  AND query_kind = 'Insert'
-  AND event_time >= now() - INTERVAL 1 HOUR
-GROUP BY minute
-ORDER BY minute
+    p.table,
+    count() AS active_parts,
+    countIf(m.table IS NOT NULL) AS active_merges,
+    round(count() / nullIf(countIf(m.table IS NOT NULL), 0), 2) AS parts_to_merges_ratio
+FROM system.parts p
+LEFT JOIN system.merges m
+    ON p.database = m.database
+   AND p.table = m.table
+WHERE p.database = 'demo'
+  AND p.active = 1
+  AND p.table IN (
+      'binance_aggtrades_stream',
+      'binance_aggtrades_batch')
+GROUP BY p.table
+ORDER BY parts_to_merges_ratio DESC;
 ```
-|Поле|Что значит|
-|----|----------|
-|minute|время|
-|inserts|число insert-запросов|
-|rows_inserted|сколько строк реально вставили|
+</details>
+</br>
+
+
+🧠 Как читать
+
+ratio        | реальный смысл
+-------------|------------------------------
+~1           | ✅ система легко справляется
+2–10         | ⚠️ растёт нагрузка
+10–100       | 🔥 серьёзная деградация
+более 100        | 💥 система захлёбывается
 
 ---
 
-👉 скажи “Готово”
-и мы сделаем следующий запрос:
+##### Query 2. ПРОБЛЕМА РЕПЛИКАЦИИ (NO_REPLICA_HAS_PART)
 
-Parts explosion (самая важная метрика для стриминга)
-
-Это прям 🔥 момент для защиты.
+🎯 Цель: найти ситуации, когда: одна реплика уже имеет part, а другая — нет
 
 
+<details>
+<summary>Содеражние Query 2</summary>
 
+Основной запрос
 
+```SQL
+SELECT
+    hostName() AS host,
+    database,
+    table,
+    replica_name,
+    total_replicas,
+    active_replicas,
+    queue_size,
+    inserts_in_queue,
+    merges_in_queue,
+    log_max_index - log_pointer AS replication_lag
+FROM clusterAllReplicas('replicated_cluster', system.replicas)
+WHERE database = 'demo';
+```
 
+Альтернатива
+```SQL
+SELECT
+    database,
+    table,
+    is_readonly,
+    is_session_expired,
+    queue_size,
+    inserts_in_queue,
+    merges_in_queue,
+    log_max_index - log_pointer AS replication_lag
+FROM system.replicas
+WHERE database = 'demo';
+```
+</details>
+</br>
 
+🧠 Как читать
 
+поле	|смысл
+------|-----
+queue_size|очередь репликации
+inserts_in_queue|вставки не применены
+replication_lag|отставание
 
-
-
-
+👉 если > 0 → уже есть проблема
 
 ---
 
+##### Query 3. ЗАВИСШИЕ ЗАПРОСЫ / ОЧЕРЕДИ
 
-#### 4.3 Apache Airflow
+🎯 Цель: увидеть, где “застряло”
+
+
+🔴 Очередь репликации (самое важное)
+<details>
+<summary>Содеражние Query 3</summary>
+
+```SQL
+SELECT
+    hostName() AS host,
+    database,
+    table,
+    replica_name,
+    type,
+    create_time,
+    required_quorum,
+    source_replica,
+    new_part_name,
+    is_currently_executing,
+    num_tries,
+    num_postponed,
+    postpone_reason,
+    last_exception,
+    last_exception_time,
+    last_attempt_time
+FROM clusterAllReplicas('replicated_cluster', system.replication_queue)
+WHERE database = 'demo'
+ORDER BY create_time ASC;
+```
+</details>
+</br>
+
+🧠 Как читать
+
+поле	|значение
+------|--------
+is_currently_executing = 0|не выполняется
+num_tries > 0|уже были ошибки
+last_exception|причина
+старый create_time|завис
+
+Если вывод запроса пустой, то очередь `replication_queue` пустая - все на момент запроса выполено
+
+<details>
+<summary>🔥 Важный индикатор</summary>
+
+```SQL
+SELECT
+    replica_name,
+    count() AS stuck_tasks
+FROM clusterAllReplicas('replicated_cluster', system.replication_queue)
+WHERE database = 'demo' 
+  AND is_currently_executing = 0
+  AND num_tries > 0
+GROUP BY replica_name
+ORDER BY stuck_tasks DESC;
+```
+</details>
+</br>
+
+👉 сразу видно “проблемную ноду”
+
+---
+
+#### 4.5. Пользователь `demo` для публичного просмотра сервисов проекта
+
+Cоздание пользователей `demo` (пароль `DemoLab_2025!`) с правами только просмотра:
+  * все таблицы Clickhouse - пользователь `demo` создан на шаге 2.4 . Доступ к Clickhouse осуществляется:
+  - через WEB GUI по адресу clickhouse.myclickcourse.ru/play
+  - через подключение (например DBeaver), параметры подключения: Хост - clickhouse.myclickcourse.ru, Порт - 443, Пользователь - demo, use_server_time_zone=false, ssl=true, protocol=https
+  * дашборды Grafana - пользователь `demo` задается через соответствующее меню в графическом интерфейсе 
+  * интерфейс Airflow - пользователь создается с помощью
+  <details>
+<summary>команды</summary>
+
+```bash
+docker exec -it airflow-apiserver airflow users create \
+  --username demo \
+  --firstname Demo \
+  --lastname User \
+  --role Viewer \
+  --email demo@example.com \
+  --password DemoLab_2025!
+```
+</details>
+</br>
+
+* ssh доступ к Ubuntu Server с правами просмотра каталога проекта реализован через настройки конфигураций облачного и локального серверов следущим образом: пользователь `demo` получает доступ к папке проекта через команду `ssh demo@ssh.myclickcourse.ru` - дважды ввести пароль. Для упрощения доступа пользователя `demo` реализован SSH jump host через VDS. Пользователь подключается к публичному домену, после чего автоматически проксируется на внутренний сервер в приватной сети WireGuard. Путь к директории проекта `/home/alex/infra`, для удобства просмотра можно использовать `tree`.
+
+* доступ к дашборду Datalens осуществляется по публичной ссылке и не требует авторизации
+
+--- 
+
+
+#### 4.6. Apache Airflow
+
+
+__Airflow Metrics__
+
+В ходе выполнения работы выявилось нецелесообразность этой визуализации - нечего выводить для пользы проекта, поэтому данные метрики в окончательном виде не реализовывались. Параметры и логи работы DAG`s можно увидеть через веб-интерфейс Apache Airflow. Ниже - объем проделанной работы по настройке мониторинга Airflow.
+
+<details>
+<summary>Команды и код для настройки мониторинга Apache Airflow</summary>
 
 __Поднять StatsD exporter для мониторинга Airflow__
 Создать папку на сервере: ```mkdir -p ~/infra/monitoring/airflow-metrics``` и в ней -
@@ -3493,7 +3634,6 @@ services:
 
     networks:
       - infra-net
-
 
 networks:
   infra-net:
@@ -3527,7 +3667,7 @@ __Подключить statsd-exporter в Prometheus__
 
 Открыть конфиг Prometheus `nano ~/infra/monitoring/prometheus/prometheus.yml`
 
-В блоке `scrape_configs` добавь новый job:
+В блоке `scrape_configs` добавить новый job:
 ```yml
 - job_name: airflow_exporter
   static_configs:
@@ -3535,33 +3675,15 @@ __Подключить statsd-exporter в Prometheus__
         - statsd-exporter:9102
 ```
 Важно: использовать внутренний порт контейнера `9102`. Перезапустить `docker restart prometheus`
+</details>
+</br>
 
-__Airflow Metrics__
+---
 
-В ходе выполнения работы выявилось нецелесообразность визуализации - нечего выводить для пользы проекта
-
-- events/sec
-- batch size
-- error rate
-
-
-
-
-#### 4.4 Grafana dashboards
-- unified ingestion experiment dashboard
-
-#### 4.5 Пользователи `admin` и `demo`
-
-- создание пользователей `demo` с правами просмотра:
-  * все таблицы Clickhouse
-  * дашборды Grafana
-  * интерфейс Airflow
-  * ssh доступ к Ubuntu Server с правами просмотра каталога проекта
 
 #### Результат шага
 
-
-
+Развернута система мониторинга на базе Prometheus и Grafana, обеспечивающая наблюдаемость потоковой и пакетной загрузки данных. Настроены метрики ClickHouse, Kafka и системных ресурсов сервера, а также реализованы SQL-запросы для диагностики деградации, репликации и очередей. Созданы публичные доступы для демонстрации системы через Grafana, ClickHouse и Airflow. Это позволяет в реальном времени анализировать состояние инфраструктуры и сравнивать поведение batch и streaming ingestion.
 
 ---
 
@@ -3571,21 +3693,141 @@ __Airflow Metrics__
 
 Сравнение __batch__ vs __streaming__.
 
-#### 5.1 Развернуть DataLens
+#### 5.1 Подключение к DataLens
 
-(или подключить к существующему)
+Настройки подключения к Clickhouse:
+- Хост
+- Порт
+- Пользователь
+- Пароль
+- TTL
 
-#### 5.2 Два идентичных dashboard
+#### 5.2 Две вкладки на dashboard "Batch vs Streaming"
+
 - batch source
 - streaming source
+- дополнительная вкладка с результатами запросов к системным таблицам Clickhouse
 
 #### 5.3 Синхронизированные фильтры
 
+- 
+- 
+
+
 #### Результат шага
+
+
+
+
 ---
 
 ### Шаг  6 — Управление жизненным циклом
 
+
+Отлично, давай оформим Шаг 6 в том же стиле — коротко, структурировано и готово для вставки в работу 👇
+
+⸻
+
+### Шаг 6 — Управление жизненным циклом
+
+🎯 Цель:
+
+Обеспечить контролируемый запуск и завершение экспериментов, а также подготовку системы к повторным запускам без накопления данных и искажения результатов.
+
+⸻
+
+#### 6.1 TRUNCATE после цикла
+
+После завершения эксперимента все данные, записанные в ClickHouse, должны быть удалены, чтобы:
+	•	исключить влияние предыдущих запусков на новые эксперименты
+	•	сохранить корректность метрик (insert rate, parts, latency)
+	•	обеспечить воспроизводимость результатов
+
+Очистка выполняется с помощью команды:
+
+TRUNCATE TABLE <table_name>;
+
+Очистке подлежат:
+	•	RAW таблицы:
+	•	binance_aggtrades_stream
+	•	binance_aggtrades_batch
+	•	агрегаты:
+	•	trades_stream_15m
+	•	trades_stream_1h
+	•	trades_batch_15m
+	•	trades_batch_1h
+	•	витрины:
+	•	trades_energy_stream
+	•	trades_energy_batch
+	•	справочные данные:
+	•	electricity_hourly
+
+⸻
+
+#### 6.2 DAG для очистки
+
+Реализован отдельный DAG:
+
+binance_cleanup
+
+Назначение:
+	•	централизованная очистка всех таблиц
+	•	возможность запуска вручную перед экспериментом
+	•	логирование процесса очистки
+
+Логика DAG:
+
+Airflow → PythonOperator → TRUNCATE всех таблиц
+
+Особенности:
+	•	используется подключение через Airflow Connections
+	•	обработка ошибок (логирование при сбое очистки)
+	•	выполняется быстро (метаданные очищаются без полного удаления файлов)
+
+⸻
+
+#### 6.3 DAG для запуска нового эксперимента
+
+Реализуется управляющий DAG:
+
+binance_experiment_runner
+
+Назначение:
+	•	запуск полного цикла эксперимента одной кнопкой
+	•	автоматизация последовательности действий
+
+Логика:
+
+cleanup → replay_pipeline
+
+где:
+	•	cleanup — очистка всех таблиц
+	•	replay_pipeline — запуск основного DAG загрузки
+
+Возможные расширения:
+	•	параметризация интенсивности (x1, x5, x10)
+	•	автоматический запуск мониторинга
+	•	фиксация метрик эксперимента
+
+⸻
+
+Результат шага
+
+Реализован механизм управления жизненным циклом данных, включающий:
+	•	очистку всех слоев хранилища (RAW, AGG, Data Mart)
+	•	отдельный DAG для подготовки системы
+	•	возможность повторного запуска экспериментов без ручного вмешательства
+
+Это обеспечивает:
+	•	воспроизводимость экспериментов
+	•	корректность метрик
+	•	удобство эксплуатации системы
+
+⸻
+
+Если хочешь, следующим шагом можем сразу сделать:
+
+👉 binance_experiment_runner DAG (очень усиливает проект на защите)
 🎯 Цель:
 
 #### 6.1 TRUNCATE после цикла
