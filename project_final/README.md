@@ -344,33 +344,42 @@ E --> F
 #### 1.10.1. Мониторинг ClickHouse
 
 Основные метрики:
-- Insert rate
-- PartsNumber
-- BackgroundMergesAndMutationsPoolTask
-- ReplicasMaxQueueSize
-- DelayedInserts
-- QueryDuration
+
+- Insert rate 
+- Active Parts 
+- Merge backlog 
+- Query Latency 
 
 Анализируется:
+
+- количество INSERT-запросов в секунду на каждой ноде
 - рост количества частей
 - загрузка merge-процессов
 - задержки вставок
-- влияние нагрузки на аналитические запросы.
 
 #### 1.10.2. Мониторинг Kafka
 
 Основные метрики:
-- consumer lag
-- messages in per second
-- messages out per second
-- producer error rate
+- Consumer Lag
+- Throughput
 
 Позволяет выявлять:
 - накопление lag
-- перегрузку топиков
-- проблемы доставки сообщений.
+- скорость вставки данных
 
-#### 1.10.3. Мониторинг Apache Airflow
+#### 1.10.3. Системные метрики
+
+Собираются через Node Exporter.
+
+Метрики:
+- CPU usage
+- RAM usage
+- Disk write rate
+- Disk space usage
+
+Позволяют оценивать влияние различных способов загрузки данных на ресурсы сервера.
+
+#### 1.10.4. Мониторинг Apache Airflow
 
 Для контроля корректности выполнения ETL-процессов используется мониторинг Airflow.
 
@@ -388,18 +397,7 @@ E --> F
 
 Метрики Airflow также экспортируются в Prometheus и отображаются в Grafana, что позволяет отслеживать состояние пайплайнов без необходимости заходить в интерфейс Airflow.
 
-#### 1.10.4. Системные метрики
 
-Собираются через Node Exporter.
-
-Метрики:
-- CPU usage
-- RAM usage
-- IO wait
-- Disk write rate
-- Disk space usage
-
-Позволяют оценивать влияние различных способов загрузки данных на ресурсы сервера.
 
 ---
 
@@ -2809,7 +2807,7 @@ def batch_task():
 
 with DAG(
     dag_id="binance_replay_sync",
-    start_date=datetime(2024, 1, 1),
+    start_date=datetime(2025, 1, 1),
     schedule=None,
     catchup=False,
     tags=["binance"]
@@ -3319,6 +3317,8 @@ __Результаты шага__
 - `Merge backlog` — Количество задач в очереди слияния частей данных (merge)
 - `Query Latency` - Длительность выполнения запросов (в секундах)
 
+---
+
 #### 4.2 Kafka metrics
 - `consumer lag`
 - `throughput`
@@ -3358,8 +3358,6 @@ networks:
 </details>
 </br>
 
-
----
 
 Что означает конфигурация `--kafka.server=kafka:9092`
 
@@ -3417,7 +3415,7 @@ __Панели Kafka metrics в Grafana:__
 
 
 <details>
-<summary>Содеражние Query 1</summary>
+<summary>Query 1</summary>
 
 ```SQL
 SELECT
@@ -3443,14 +3441,11 @@ ORDER BY parts_to_merges_ratio DESC;
 
 🧠 Как читать
 
-ratio        | реальный смысл
--------------|------------------------------
-~1           | ✅ система легко справляется
-2–10         | ⚠️ растёт нагрузка
-10–100       | 🔥 серьёзная деградация
-более 100        | 💥 система захлёбывается
+`parts_to_merges_ratio` — моментальный индикатор давления на merge subsystem.
+Метрика интерпретируется только вместе с active_merges:
+- если active_merges > 0, можно оценивать текущую интенсивность схлопывания parts;
+- если active_merges = 0, высокий ratio не означает деградацию сам по себе, а лишь показывает, что в момент запроса merge-процессы не выполнялись.
 
----
 
 ##### Query 2. ПРОБЛЕМА РЕПЛИКАЦИИ (NO_REPLICA_HAS_PART)
 
@@ -3458,7 +3453,7 @@ ratio        | реальный смысл
 
 
 <details>
-<summary>Содеражние Query 2</summary>
+<summary>Query 2</summary>
 
 Основной запрос
 
@@ -3505,8 +3500,6 @@ replication_lag|отставание
 
 👉 если > 0 → уже есть проблема
 
----
-
 ##### Query 3. ЗАВИСШИЕ ЗАПРОСЫ / ОЧЕРЕДИ
 
 🎯 Цель: увидеть, где “застряло”
@@ -3514,7 +3507,7 @@ replication_lag|отставание
 
 🔴 Очередь репликации (самое важное)
 <details>
-<summary>Содеражние Query 3</summary>
+<summary>Query 3</summary>
 
 ```SQL
 SELECT
@@ -3696,45 +3689,52 @@ __Подключить statsd-exporter в Prometheus__
 #### 5.1 Подключение к DataLens
 
 Настройки подключения к Clickhouse:
-- Хост
-- Порт
-- Пользователь
-- Пароль
-- TTL
+- Хост = `clickhouse.myclickcourse.ru`
+- Порт = `443`
+- Пользователь = `demo`
+- Пароль = `DemoLab_2025!`
+- TLS = `вкл`
+- `Разрешить подзапросы в датасетах` = `вкл`
 
-#### 5.2 Две вкладки на dashboard "Batch vs Streaming"
+#### 5.2 Дашборд: Batch vs Streaming
 
-- batch source
-- streaming source
-- дополнительная вкладка с результатами запросов к системным таблицам Clickhouse
+Реализованы три вкладки:
+1.	Batch ingestion
+	* Источник: batch pipeline (ClickHouse)
+	* KPI: количество строк, сделок, объём, средняя цена
+	* *Графики: динамика по часам, интервалы 15m и 1h
+2.	Streaming ingestion
+	* Полностью аналогична Batch
+	* Отличие: источник — streaming pipeline
+	* Позволяет напрямую сравнивать поведение ingestion
+3.	Показатели ClickHouse
+	* Системные метрики:
+	* количество parts, строк и размер таблиц
+	* соотношение parts / merges
+	* состояние репликации
+	* зависшие очереди
 
 #### 5.3 Синхронизированные фильтры
 
-- 
-- 
+- Селектор по валютной паре (symbol)
+- Применяется ко всем графикам на вкладках Batch и Streaming
+- Обеспечивает единый анализ по выбранному инструменту
 
 
 #### Результат шага
-
-
-
+Построен BI-дашборд для сравнения batch и streaming загрузки данных.
+Реализованы ключевые метрики бизнес-уровня и системного уровня.
+Обеспечена возможность интерактивного анализа через селектор валютных пар.
+Дашборд позволяет визуально сравнивать поведение pipeline и состояние ClickHouse в режиме, близком к production.
 
 ---
 
 ### Шаг  6 — Управление жизненным циклом
 
-
-Отлично, давай оформим Шаг 6 в том же стиле — коротко, структурировано и готово для вставки в работу 👇
-
-⸻
-
-### Шаг 6 — Управление жизненным циклом
-
 🎯 Цель:
 
 Обеспечить контролируемый запуск и завершение экспериментов, а также подготовку системы к повторным запускам без накопления данных и искажения результатов.
 
-⸻
 
 #### 6.1 TRUNCATE после цикла
 
@@ -3748,201 +3748,375 @@ __Подключить statsd-exporter в Prometheus__
 TRUNCATE TABLE <table_name>;
 
 Очистке подлежат:
-	•	RAW таблицы:
-	•	binance_aggtrades_stream
-	•	binance_aggtrades_batch
-	•	агрегаты:
-	•	trades_stream_15m
-	•	trades_stream_1h
-	•	trades_batch_15m
-	•	trades_batch_1h
-	•	витрины:
-	•	trades_energy_stream
-	•	trades_energy_batch
-	•	справочные данные:
-	•	electricity_hourly
+- RAW таблицы:
+	* binance_aggtrades_stream
+	* binance_aggtrades_batch
+- агрегаты:
+  * trades_stream_15m
+  * trades_stream_1h
+  * trades_batch_15m
+  * trades_batch_1h
+- витрины:
+	* trades_energy_stream
+	* trades_energy_batch
 
-⸻
+Справочные данные:
+- `electricity_hourly` не чистим, потому что эти данные не меняются и на результат экспериментов не влияют
+
+---
 
 #### 6.2 DAG для очистки
 
-Реализован отдельный DAG:
-
-binance_cleanup
+Реализован отдельный DAG: binance_cleanup
 
 Назначение:
-	•	централизованная очистка всех таблиц
-	•	возможность запуска вручную перед экспериментом
-	•	логирование процесса очистки
+- централизованная очистка всех таблиц
+- возможность запуска вручную перед экспериментом
+- логирование процесса очистки
 
 Логика DAG:
 
 Airflow → PythonOperator → TRUNCATE всех таблиц
 
+<details>
+<summary>Файл binance_cleanup.py</summary>
+
+```SQL
+from airflow import DAG
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.hooks.base import BaseHook
+
+from datetime import datetime
+import clickhouse_connect
+import logging
+
+
+# =========================
+# LOGGING
+# =========================
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
+# =========================
+# CLICKHOUSE CONNECTION
+# =========================
+
+def get_ch_client():
+
+    conn = BaseHook.get_connection("clickhouse_demo")
+
+    return clickhouse_connect.get_client(
+        host=conn.host,
+        port=conn.port,
+        username=conn.login,
+        password=conn.password,
+        database=conn.schema
+    )
+
+
+# =========================
+# CLEANUP TASK
+# =========================
+
+def cleanup_clickhouse():
+
+    logger.info("Starting ClickHouse cleanup")
+
+    client = get_ch_client()
+
+    # electricity_hourly не чистим
+    tables = [
+        "binance_aggtrades_batch",
+        "binance_aggtrades_stream",
+        "kafka_binance_stream",
+        "trades_batch_1h",
+        "trades_batch_15m",
+        "trades_energy_batch",
+        "trades_energy_stream",
+        "trades_stream_1h",
+        "trades_stream_15m"
+    ]
+
+    for table in tables:
+
+        try:
+            query = f"TRUNCATE TABLE {table}"
+
+            logger.info(f"Truncating table: {table}")
+
+            client.command(query)
+
+            logger.info(f"Table cleared: {table}")
+
+        except Exception as e:
+            logger.error(f"Error truncating {table}: {e}")
+
+    logger.info("Cleanup finished")
+
+
+# =========================
+# DAG
+# =========================
+
+with DAG(
+    dag_id="binance_cleanup",
+    start_date=datetime(2025, 1, 1),
+    schedule=None,
+    catchup=False,
+    tags=["binance", "cleanup"]
+) as dag:
+
+    cleanup = PythonOperator(
+        task_id="cleanup_clickhouse",
+        python_callable=cleanup_clickhouse
+    )
+```
+</details>
+</br>
+
 Особенности:
-	•	используется подключение через Airflow Connections
-	•	обработка ошибок (логирование при сбое очистки)
-	•	выполняется быстро (метаданные очищаются без полного удаления файлов)
+- используется подключение через Airflow Connections
+- обработка ошибок (логирование при сбое очистки)
+- выполняется быстро (метаданные очищаются без полного удаления файлов)
 
-⸻
+#### 6.3. DAG для подготовки следующего эксперимента с интенсивностью х5
 
-#### 6.3 DAG для запуска нового эксперимента
+Подготовлен DAG, который:
+- считывает данные из первичных исторических датасетов
+- генерирует новые данные (х5), увеличивая количество строк в 5 раз, заполнение данных осуществляется на основе соседних по метке времени строк с небольшими отклонениями с сохранением типов и форматов данных
+- записывает данные в хранилище Minio в датасеты `trades_stream_X5.parquet` и `trades_batch_X5.parquet` отедльно для каждого потока данных 
 
-Реализуется управляющий DAG:
+<details>
+<summary>Файл binance_build_parquet_datasetX5.py</summary>
 
-binance_experiment_runner
+```python
+from airflow import DAG
+from airflow.providers.standard.operators.python import PythonOperator
+from datetime import datetime
+import zipfile
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+import os
+import numpy as np
+from minio import Minio
 
-Назначение:
-	•	запуск полного цикла эксперимента одной кнопкой
-	•	автоматизация последовательности действий
 
-Логика:
+# -----------------------------------------
+# CONFIG
+# -----------------------------------------
 
-cleanup → replay_pipeline
+DATA_DIR = "/opt/airflow/data/binance"
 
-где:
-	•	cleanup — очистка всех таблиц
-	•	replay_pipeline — запуск основного DAG загрузки
+FILES = [
+    "BTCUSDT-aggTrades-2023-07.zip",
+    "ETHUSDT-aggTrades-2023-07.zip",
+    "BTCUSDC-aggTrades-2023-07.zip",
+    "ETHUSDC-aggTrades-2023-07.zip",
+]
 
-Возможные расширения:
-	•	параметризация интенсивности (x1, x5, x10)
-	•	автоматический запуск мониторинга
-	•	фиксация метрик эксперимента
+LOCAL_STREAM_PARQUET = "/opt/airflow/data/binance/trades_stream_X5.parquet"
+LOCAL_BATCH_PARQUET = "/opt/airflow/data/binance/trades_batch_X5.parquet"
 
-⸻
+MINIO_BUCKET = "clickhouse-lab-datasets"
 
-Результат шага
+MINIO_STREAM_OBJECT = "binance/july_2023/trades_stream_X5.parquet"
+MINIO_BATCH_OBJECT = "binance/july_2023/trades_batch_X5.parquet"
+
+
+minio_client = Minio(
+    "minio:9000",
+    access_key="admin",
+    secret_key="AdminLab_2025!",
+    secure=False
+)
+
+
+# -----------------------------------------
+# GENERATE X5 DATA
+# -----------------------------------------
+
+def generate_x5(df: pd.DataFrame) -> pd.DataFrame:
+    dfs = [df]
+
+    for i in range(4):  # исходный + 4 копии = x5
+        tmp = df.copy()
+
+        # небольшой случайный сдвиг времени
+        shift_ms = np.random.randint(1, 50, size=len(tmp))
+        tmp["event_time"] = tmp["event_time"] + pd.to_timedelta(shift_ms, unit="ms")
+
+        # небольшой шум по цене и количеству
+        tmp["price"] = tmp["price"] * (1 + np.random.normal(0, 0.0005, len(tmp)))
+        tmp["quantity"] = tmp["quantity"] * (1 + np.random.normal(0, 0.001, len(tmp)))
+
+        # уникализируем ID
+        tmp["agg_trade_id"] = tmp["agg_trade_id"] + (i + 1) * 10_000_000_000
+        tmp["first_trade_id"] = tmp["first_trade_id"] + (i + 1) * 10_000_000_000
+        tmp["last_trade_id"] = tmp["last_trade_id"] + (i + 1) * 10_000_000_000
+
+        dfs.append(tmp)
+
+    result = pd.concat(dfs, ignore_index=True)
+    return result
+
+
+# -----------------------------------------
+# TASK
+# -----------------------------------------
+
+def build_dataset_x5():
+
+    dfs = []
+
+    for filename in FILES:
+
+        symbol = filename.split("-")[0]
+        zip_path = os.path.join(DATA_DIR, filename)
+
+        print(f"Processing {zip_path}")
+
+        with zipfile.ZipFile(zip_path) as z:
+            csv_name = z.namelist()[0]
+
+            with z.open(csv_name) as f:
+                df = pd.read_csv(
+                    f,
+                    header=None,
+                    names=[
+                        "agg_trade_id",
+                        "price",
+                        "quantity",
+                        "first_trade_id",
+                        "last_trade_id",
+                        "event_time",
+                        "is_buyer_maker",
+                        "is_best_match"
+                    ]
+                )
+
+        # удаляю лишнюю колонку
+        df = df.drop(columns=["is_best_match"])
+
+        # нормализация timestamp
+        df["event_time"] = pd.to_numeric(df["event_time"], errors="coerce")
+        df = df.dropna(subset=["event_time"])
+
+        df["event_time"] = pd.to_datetime(
+            df["event_time"].astype("int64"),
+            unit="ms",
+            utc=True
+        )
+
+        # добавляю symbol
+        df["symbol"] = symbol
+
+        # генерирую X5
+        df_x5 = generate_x5(df)
+
+        dfs.append(df_x5)
+
+    # объединяю все пары
+    full_df = pd.concat(dfs, ignore_index=True)
+
+    print("Dataset rows (X5):", len(full_df))
+
+    # сортировка по времени
+    full_df = full_df.sort_values("event_time")
+
+    # оптимизация типов
+    full_df["is_buyer_maker"] = full_df["is_buyer_maker"].astype("int8")
+
+    # защита от отрицательных значений после шума
+    full_df["price"] = full_df["price"].clip(lower=0.00000001)
+    full_df["quantity"] = full_df["quantity"].clip(lower=0.00000001)
+
+    # конвертация в parquet
+    print("Converting to Parquet")
+
+    table = pa.Table.from_pandas(full_df, preserve_index=False)
+
+    pq.write_table(table, LOCAL_STREAM_PARQUET)
+    pq.write_table(table, LOCAL_BATCH_PARQUET)
+
+    # -----------------------------------------
+    # Upload STREAM dataset
+    # -----------------------------------------
+
+    print("Uploading STREAM X5 dataset to MinIO")
+
+    minio_client.fput_object(
+        MINIO_BUCKET,
+        MINIO_STREAM_OBJECT,
+        LOCAL_STREAM_PARQUET
+    )
+
+    # -----------------------------------------
+    # Upload BATCH dataset
+    # -----------------------------------------
+
+    print("Uploading BATCH X5 dataset to MinIO")
+
+    minio_client.fput_object(
+        MINIO_BUCKET,
+        MINIO_BATCH_OBJECT,
+        LOCAL_BATCH_PARQUET
+    )
+
+    print("Datasets X5 uploaded successfully")
+
+
+# -----------------------------------------
+# DAG
+# -----------------------------------------
+
+default_args = {
+    "owner": "airflow",
+    "retries": 1
+}
+
+with DAG(
+    dag_id="binance_build_parquet_dataset_x5",
+    start_date=datetime(2025, 1, 1),
+    schedule=None,
+    catchup=False,
+    default_args=default_args,
+    tags=["dataset", "binance", "x5"]
+) as dag:
+
+    build = PythonOperator(
+        task_id="build_parquet_dataset_x5",
+        python_callable=build_dataset_x5
+    )
+```
+</details>
+</br>
+
+#### 6.4. Для повторения эксперимента следует запустить DAG:
+- `binance_cleanup` - очистки данных 
+- `binance_replay_sync` - загрузки данных в Clickhouse по двум потокам batch и streaming, перед стартом изменить источник данных на `//clickhouse-lab-datasets/binance/july_2023/tradesX5.parquet`
+
+#### Результат шага
 
 Реализован механизм управления жизненным циклом данных, включающий:
-	•	очистку всех слоев хранилища (RAW, AGG, Data Mart)
-	•	отдельный DAG для подготовки системы
-	•	возможность повторного запуска экспериментов без ручного вмешательства
+- очистку всех слоев хранилища (RAW, AGG, Data Mart)
+- отдельный DAG для подготовки новых данных
+- возможность повторного запуска экспериментов без ручного вмешательства
 
 Это обеспечивает:
-	•	воспроизводимость экспериментов
-	•	корректность метрик
-	•	удобство эксплуатации системы
+- воспроизводимость экспериментов
+- корректность метрик
+- удобство эксплуатации системы
 
-⸻
-
-Если хочешь, следующим шагом можем сразу сделать:
-
-👉 binance_experiment_runner DAG (очень усиливает проект на защите)
-🎯 Цель:
-
-#### 6.1 TRUNCATE после цикла
-
-#### 6.2 DAG для очистки
-
-#### 6.3 DAG для запуска нового эксперимента
-
-#### Результат шага
 ---
 
-### Шаг 7 — Повторение цикла и выводы по результатам проделанной работы
-🎯 Цель:
+### Шаг 7 — Выводы по результатам проделанной работы
 
 
-1. Реализовать мониторинг по метрикам на данных, загружаемых с интенсивностью x5 к базовой (то есть количество строк в секунду выше в 5 раз)
-
-2. Реализовать мониторинг по метрикам на данных, загружаемых с интенсивностью x10 к базовой (то есть количество строк в секунду выше в 10 раз)
-
-Сделать сравнительную таблицу между batch и streaming для двух экспериментов и выводы о возможном пороге деградации инфраструктуры.
-
-#### Результат шага
----
-
-### Шаг 8 — Презентация (10–15 минут)
-1. Проблема
-2. Архитектура
-3. Инженерное решение
-4. Демонстрация
-5. Результаты
-6. Ограничения
-7. Что можно улучшить
-8. Перспектива проекта, следующие шаги
-9. Пайплайны обработки данных
-10. Мониторинг
-
-6.1 Prometheus
-
-Собираемые метрики:
-	•	загрузка CPU
-	•	использование памяти
-	•	дисковые операции
-	•	метрики ClickHouse
-	•	задержка потребителя Kafka (consumer lag)
-
-
-Grafana
-
-Дашборды включают:
-	•	скорость вставок (insert rate)
-	•	количество частей (parts count)
-	•	отставание merge
-	•	нагрузка CPU
-	•	задержки выполнения запросов
-
-
-
-1.  План сравнения Batch и Streaming
-
-Метрики для сравнения:
-	•	задержка вставки (insert latency)
-	•	количество частей (parts)
-	•	задержка merge
-	•	загрузка CPU
-	•	задержка выполнения DAG
-
-⸻
-
-12. Соответствие требованиям курса
-
-✔ Развернутая инфраструктура
-✔ Реальные датасеты
-✔ Построенная архитектура хранилища
-✔ Пакетный пайплайн
-⚠ Потоковый пайплайн — в разработке
-⚠ Alerts — в разработке
-⚠ Централизованное логирование — планируется
-
-⸻
-
-13. MVP проекта
-
-MVP включает:
-	•	работающий кластер ClickHouse
-	•	пакетную загрузку через Airflow
-	•	мониторинг через Prometheus + Grafana
-	•	демонстрационные данные
-	•	документированную архитектуру
-
-⸻
-
-14. Перспективы развития
-	•	реализация streaming ingestion
-	•	нагрузочное тестирование
-	•	автоматизация деплоя
-	•	логирование (Loki / ELK)
-	•	CI/CD
-
-⸻
-
-15. Презентация
-
-📎 [Ссылка на презентацию будет добавлена после подготовки]
-
-⸻
-
-16. Чек-лист скриншотов
-	•	Архитектура
-	•	Граф DAG
-	•	Успешный запуск DAG
-	•	Структура таблиц
-	•	Дашборд Grafana
-	•	Prometheus targets
-	•	Kafka ingestion
-	•	Alerts
-
-⸻
+// Описать первоначальные цели проектной работы, далее как они были реализованы. В двух словах рассказать что на используемой конфигурации нагрузка в 0.8 - 1.0 млн. строк в день не привела к заметной деградации. Поэтому подготовлен датасет с более высокой плотностью данных. И создана вся инфраструктура для дальнейшей реализации экспериментов. Констатировать, что эти исследования выходят за рамки темы проектной работы, а в пределах темы работа выполнена в полном объеми и созданное архитектурное решение позволяет : 
+-
+-
+-
 
