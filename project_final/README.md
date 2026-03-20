@@ -28,18 +28,22 @@ __Проектная работа по курсу обучения OTUS "Clickho
   - [Шаг 1 — Инфраструктура данных](#шаг-1--инфраструктура-данных-bootstrap-layer)
   - [Шаг 2 — Загрузка данных через Airflow](#шаг-2--загрузка-данных-через-airflow)
   - [Шаг 3 — Проектирование схемы ClickHouse](#шаг-3--проектирование-схемы-clickhouse)
+  - [Шаг 4 — Мониторинг лаборатории](#шаг-4--мониторинг-лаборатории)
+  - [Шаг 5 — Визуализация BI](#шаг-5--визуализация-bi)
+  - [Шаг 6 — Управление жизненным циклом](#шаг-6--управление-жизненным-циклом)
+  - [Шаг 7 — Выводы](#шаг-7---выводы)
 
-- [ 🔗Ссылки на сервисы](#ссылки-на-сервисы)
+- [Ссылки на сервисы](#ссылки-на-сервисы)
 
-- [📊 Скриншоты](#скриншоты)
+- [Скриншоты](#скриншоты)
 
-- [🚀 Что далее?](#что-далее)
+- [Что далее?](#что-далее)
 
 
 
 ## 1. Обзор проекта
 
-### 🎯 1.1. Цель проекта
+### 1.1. Цель проекта
 
 Разработать и продемонстрировать MVP аналитической платформы на базе ClickHouse для сравнения двух подходов к загрузке данных:
 - пакетная загрузка (batch ingestion)
@@ -1095,6 +1099,7 @@ docker run -d \
  - на сервере создана основная часть архитектуры - кластер базы данных Clickhouse (2 ноды) в контейнерах Docker в единой локальной сети `infra-net` с управлением через Clickhouse-Keeper (3 ноды)
 
 [⬆️ Наверх](#-оглавление)
+
 ---
 
 ### Шаг 1 — Инфраструктура данных (Bootstrap Layer)
@@ -3305,7 +3310,7 @@ __Результаты шага__
 
 ---
 
-### Шаг  4 — Мониторинг лаборатории
+### Шаг 4 — Мониторинг лаборатории
 
 🎯 Цель:
 
@@ -3735,7 +3740,7 @@ __Подключить statsd-exporter в Prometheus__
 
 ---
 
-### Шаг  6 — Управление жизненным циклом
+### Шаг 6 — Управление жизненным циклом
 
 🎯 Цель:
 
@@ -4120,7 +4125,8 @@ with DAG(
 
 ---
 
-### Шаг 7 — Выводы по результатам проделанной работы
+### Шаг 7 - Выводы
+по результатам проделанной работы
 
 🎯 Цель этапа:
 Оценить результаты работы и подтвердить достижение целей проекта.
@@ -4197,24 +4203,27 @@ __Streaming__ даёт скорость, __Batch__ — стабильность.
 - [grafana.myclickcourse.ru веб интерфейс Grafana](grafana.myclickcourse.ru)
 - ssh доступ: ssh.myclickcourse.ru
 
-## Cкриншоты состояния системы при запуске загрузки из оригинального датасета (без генерации х5)
+Доступ ко всем сервисам: пользователь `demo` пароль `DemoLab_2025!`
 
-![Скриншот 1](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen1.png)
-![Скриншот 2](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen2.png)
-![Скриншот 3](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen3.png)
-![Скриншот 4](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen4.png)
-![Скриншот 5](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen5.png)
-![Скриншот 6](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen6.png)
-![Скриншот 7](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen7.png)
-![Скриншот 8](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen8.png)
-![Скриншот 9](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen9.png)
-![Скриншот 10](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen10.png)
-![Скриншот 11](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen11.png)
-![Скриншот 12](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen12.png)
-![Скриншот 13](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen13.png)
+## Скриншоты
+состояния системы при запуске загрузки из оригинального датасета (без генерации х5)
+
+- ![Скриншот 1](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen1.png)
+- ![Скриншот 2](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen2.png)
+- ![Скриншот 3](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen3.png)
+- ![Скриншот 4](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen4.png)
+- ![Скриншот 5](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen5.png)
+- ![Скриншот 6](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen6.png)
+- ![Скриншот 7](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen7.png)
+- ![Скриншот 8](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen8.png)
+- ![Скриншот 9](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen9.png)
+- ![Скриншот 10](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen10.png)
+- ![Скриншот 11](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen11.png)
+- ![Скриншот 12](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen12.png)
+- ![Скриншот 13](https://github.com/realexpert1C/clickhouse-course/blob/22e6481cf709f131d5794cbe044963d306657816/images/pf_screen13.png)
 
 ## Что далее?
-В настоящее время время оснвной DAG проекта, моделирующий два параллельных потока данных запущен в демонстрационных целях на 30 дней с генерацией дополнительных строк с коэффициентом 5 к оригиналу.
+В настоящее время время основной DAG проекта, моделирующий два параллельных потока данных запущен в демонстрационных целях на 30 дней с генерацией дополнительных строк с коэффициентом 5 к оригиналу.
 
 Возможные направения развиия платформы:
 - Настройка ежедневного запуска DAG для моделирования сбоев при загрузке и догоняющей загрузки данных после сбоев на сервере
@@ -4222,7 +4231,7 @@ __Streaming__ даёт скорость, __Batch__ — стабильность.
 - Добавление возможности изменять не только количество строк данных, но и ширину (количество столбцов) RAW таблиц
 - Добавление возможности раздельного запуска потоков загрузки
 - Добавление алертов по ключевым показателям (зависшие запросы, ошибки NO_REPLICA_HAS_PART и др.) с выводом сообщений в Телеграмм-бот, настройка запуска DAG через Телеграм-бот
-- Синхронизация содержимого airflow/dags c Git для создания в удаленном режиме без прмой правки на сервере и обеспечения контроля версий
+- Синхронизация содержимого airflow/dags c Git для возможности создания дагов в удаленном режиме без прмой правки на сервере и обеспечения контроля версий
 - Создание полноценной системы резервного копирования данных
 - Прогон тестовых данных с разными настройками Clickhouse (размер блока вставки, число параллельных потоков вставки, optimize_on_insert = 1/0)
 - Реализовать полный  Product Overview аналитической платформы
