@@ -3417,6 +3417,8 @@ __Панели Kafka metrics в Grafana:__
 - Disk Write Throughput - сколько данных сервер записывает на диск в секунду
 - Disk Usage % - процент заполнения жесткого диска
   
+---
+
 #### 4.4. Проверочные SQL-запросы (ClickHouse)
 
 ##### Query 1. ДЕГРАДАЦИЯ: parts vs merges (pressure snapshot)
@@ -3578,14 +3580,12 @@ ORDER BY stuck_tasks DESC;
 
 #### 4.5. Пользователь `demo` для публичного просмотра сервисов проекта
 
-Cоздание пользователей `demo` (пароль `DemoLab_2025!`) с правами только просмотра:
+Cоздание пользователя `demo` (пароль `DemoLab_2025!`) с правами только просмотра:
   * все таблицы Clickhouse - пользователь `demo` создан на шаге 2.4 . Доступ к Clickhouse осуществляется:
   - через WEB GUI по адресу clickhouse.myclickcourse.ru/play
   - через подключение (например DBeaver), параметры подключения: Хост - clickhouse.myclickcourse.ru, Порт - 443, Пользователь - demo, use_server_time_zone=false, ssl=true, protocol=https
   * дашборды Grafana - пользователь `demo` задается через соответствующее меню в графическом интерфейсе 
-  * интерфейс Airflow - пользователь создается с помощью
-  <details>
-<summary>команды</summary>
+  * интерфейс Airflow - пользователь создается с помощью команды
 
 ```bash
 docker exec -it airflow-apiserver airflow users create \
@@ -3596,7 +3596,7 @@ docker exec -it airflow-apiserver airflow users create \
   --email demo@example.com \
   --password DemoLab_2025!
 ```
-</details>
+
 </br>
 
 * ssh доступ к Ubuntu Server с правами просмотра каталога проекта реализован через настройки конфигураций облачного и локального серверов следущим образом: пользователь `demo` получает доступ к папке проекта через команду `ssh demo@ssh.myclickcourse.ru` - дважды ввести пароль. Для упрощения доступа пользователя `demo` реализован SSH jump host через VDS. Пользователь подключается к публичному домену, после чего автоматически проксируется на внутренний сервер в приватной сети WireGuard. Путь к директории проекта `/home/alex/infra`, для удобства просмотра можно использовать `tree`.
