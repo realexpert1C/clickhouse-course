@@ -4197,9 +4197,9 @@ __Streaming__ даёт скорость, __Batch__ — стабильность.
 
 ## Ссылки на развернутные online сервисы
 
-- [clickhouse.myclickcourse.ru/play веб интерфейс Clickhouse](clickhouse.myclickcourse.ru/play)
-- [airflow.myclickcourse.ru веб интерфейс Apache Airflow](airflow.myclickcourse.ru)
-- [grafana.myclickcourse.ru веб интерфейс Grafana](grafana.myclickcourse.ru)
+- [clickhouse.myclickcourse.ru/play веб интерфейс Clickhouse](https://clickhouse.myclickcourse.ru/play)
+- [airflow.myclickcourse.ru веб интерфейс Apache Airflow](https://airflow.myclickcourse.ru)
+- [grafana.myclickcourse.ru веб интерфейс Grafana](https://grafana.myclickcourse.ru)
 - ssh доступ: ssh.myclickcourse.ru
 
 Доступ ко всем сервисам: пользователь `demo` пароль `DemoLab_2025!`
