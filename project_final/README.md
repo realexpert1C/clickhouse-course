@@ -1561,7 +1561,7 @@ services:
 
     environment:
       MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: AdminLab_2025!
+      MINIO_ROOT_PASSWORD: ************
 
     volumes:
       - ./data:/data
@@ -1868,7 +1868,7 @@ _AIRFLOW_DB_MIGRATE=true
 # Создание администратора при первом запуске
 _AIRFLOW_WWW_USER_CREATE=true
 _AIRFLOW_WWW_USER_USERNAME=admin
-_AIRFLOW_WWW_USER_PASSWORD=AdminLab_2025!
+_AIRFLOW_WWW_USER_PASSWORD=************
 _AIRFLOW_WWW_USER_FIRSTNAME=Admin
 _AIRFLOW_WWW_USER_LASTNAME=User
 _AIRFLOW_WWW_USER_EMAIL=admin@example.com
@@ -1952,7 +1952,7 @@ docker compose exec airflow-apiserver airflow users create \
   --lastname User \
   --role Admin \
   --email admin@example.com \
-  --password AdminLab_2025!
+  --password ************
 ```
 
 </details>
@@ -1974,7 +1974,7 @@ __Результат__
 #### 2.2 DAG: Загрузка Binance July 2023
 
 <details>
-<summary>DAG: infra/airflow/dags/binance_bootstrap_dataset.py</summary>
+<summary>DAG: infra/airflow/dags/binance_build_parquet_dataset.py</summary>
 
 
 ```python
@@ -2014,7 +2014,7 @@ MINIO_BATCH_OBJECT = "binance/july_2023/trades_batch.parquet"
 minio_client = Minio(
     "minio:9000",
     access_key="admin",
-    secret_key="AdminLab_2025!",
+    secret_key="********",
     secure=False
 )
 
@@ -2171,6 +2171,7 @@ with DAG(
         task_id="build_parquet_dataset",
         python_callable=build_dataset
     )
+
 ```
 
 </details>
@@ -2526,7 +2527,7 @@ docker exec -it ch1 clickhouse-client --user default --password mypassword -q \
 
 
 <details>
-<summary>Файл: ~/infra/airflow/dags/binance_replay_pipelines.py</summary>
+<summary>Файл: ~/infra/airflow/dags/binance_replay_time_driven.py</summary>
 
 ```python
 from airflow import DAG
@@ -2595,7 +2596,7 @@ def get_ch_client():
 minio_client = Minio(
     "minio:9000",
     access_key="admin",
-    secret_key="AdminLab_2025!",
+    secret_key="********",
     secure=False
 )
 
@@ -3599,7 +3600,7 @@ docker exec -it airflow-apiserver airflow users create \
 
 </br>
 
-* ssh доступ к Ubuntu Server с правами просмотра каталога проекта реализован через настройки конфигураций облачного и локального серверов следущим образом: пользователь `demo` получает доступ к папке проекта через команду `ssh demo@ssh.myclickcourse.ru` - дважды ввести пароль. Для упрощения доступа пользователя `demo` реализован SSH jump host через VDS. Пользователь подключается к публичному домену, после чего автоматически проксируется на внутренний сервер в приватной сети WireGuard. Путь к директории проекта `/home/alex/infra`, для удобства просмотра можно использовать `tree`.
+* ssh доступ к Ubuntu Server с правами просмотра каталога проекта реализован через настройки конфигураций облачного и локального серверов следущим образом: пользователь `demo` получает доступ к папке проекта через команду `ssh demo@ssh.myclickcourse.ru` - дважды ввести пароль. Для упрощения доступа пользователя `demo` реализован SSH jump host через VPS. Пользователь подключается к публичному домену, после чего автоматически проксируется на внутренний сервер в приватной сети WireGuard. Путь к директории проекта `/home/alex/infra`, для удобства просмотра можно использовать `tree`.
 
 * доступ к дашборду Datalens осуществляется по публичной ссылке и не требует авторизации
 
@@ -3887,6 +3888,7 @@ with DAG(
         python_callable=cleanup_clickhouse
     )
 ```
+
 </details>
 </br>
 
@@ -3895,222 +3897,380 @@ with DAG(
 - обработка ошибок (логирование при сбое очистки)
 - выполняется быстро (метаданные очищаются без полного удаления файлов)
 
-#### 6.3. DAG для подготовки следующего эксперимента с интенсивностью х5
+#### 6.3. DAG для реализации следующего эксперимента с интенсивностью х5
 
 Подготовлен DAG, который:
 - считывает данные из первичных исторических датасетов
 - генерирует новые данные (х5), увеличивая количество строк в 5 раз, заполнение данных осуществляется на основе соседних по метке времени строк с небольшими отклонениями с сохранением типов и форматов данных
-- записывает данные в хранилище Minio в датасеты `trades_stream_X5.parquet` и `trades_batch_X5.parquet` отедльно для каждого потока данных 
+- делает вставки в целевые таблицы как и в первоначальном DAG отедльно для каждого потока данных 
 
 <details>
-<summary>Файл binance_build_parquet_datasetX5.py</summary>
+<summary>Файл binance_replay_time_driven_x5.py</summary>
 
 ```python
 from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
+from airflow.hooks.base import BaseHook
+
 from datetime import datetime
-import zipfile
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
-import os
 import numpy as np
+import time
+import logging
+import threading
+from queue import Queue
+
 from minio import Minio
+from kafka import KafkaProducer
+import clickhouse_connect
 
 
-# -----------------------------------------
+# =========================
 # CONFIG
-# -----------------------------------------
+# =========================
 
-DATA_DIR = "/opt/airflow/data/binance"
+DATA_DIR = "/opt/airflow/data"
 
-FILES = [
-    "BTCUSDT-aggTrades-2023-07.zip",
-    "ETHUSDT-aggTrades-2023-07.zip",
-    "BTCUSDC-aggTrades-2023-07.zip",
-    "ETHUSDC-aggTrades-2023-07.zip",
-]
+STREAM_FILE = f"{DATA_DIR}/trades_stream.parquet"
+BATCH_FILE = f"{DATA_DIR}/trades_batch.parquet"
 
-LOCAL_STREAM_PARQUET = "/opt/airflow/data/binance/trades_stream_X5.parquet"
-LOCAL_BATCH_PARQUET = "/opt/airflow/data/binance/trades_batch_X5.parquet"
+KAFKA_TOPIC = "binance_trades_stream"
 
-MINIO_BUCKET = "clickhouse-lab-datasets"
+STREAM_BLOCK = 5000
+BATCH_BLOCK = 50000
+BATCH_TIMEOUT = 600  # 10 минут
 
-MINIO_STREAM_OBJECT = "binance/july_2023/trades_stream_X5.parquet"
-MINIO_BATCH_OBJECT = "binance/july_2023/trades_batch_X5.parquet"
+START_TIME = pd.Timestamp("2023-07-01 00:00:00", tz="UTC")
+TOTAL_SECONDS = 30 * 24 * 3600
 
+
+# =========================
+# LOGGING
+# =========================
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
+# =========================
+# CLICKHOUSE
+# =========================
+
+def get_ch_client():
+    conn = BaseHook.get_connection("clickhouse_demo")
+
+    return clickhouse_connect.get_client(
+        host=conn.host,
+        port=conn.port,
+        username=conn.login,
+        password=conn.password,
+        database=conn.schema
+    )
+
+
+# =========================
+# MINIO
+# =========================
 
 minio_client = Minio(
     "minio:9000",
     access_key="admin",
-    secret_key="AdminLab_2025!",
+    secret_key="********",
     secure=False
 )
 
 
-# -----------------------------------------
-# GENERATE X5 DATA
-# -----------------------------------------
+# =========================
+# KAFKA
+# =========================
 
-def generate_x5(df: pd.DataFrame) -> pd.DataFrame:
-    dfs = [df]
+import json
 
-    for i in range(4):  # исходный + 4 копии = x5
-        tmp = df.copy()
-
-        # небольшой случайный сдвиг времени
-        shift_ms = np.random.randint(1, 50, size=len(tmp))
-        tmp["event_time"] = tmp["event_time"] + pd.to_timedelta(shift_ms, unit="ms")
-
-        # небольшой шум по цене и количеству
-        tmp["price"] = tmp["price"] * (1 + np.random.normal(0, 0.0005, len(tmp)))
-        tmp["quantity"] = tmp["quantity"] * (1 + np.random.normal(0, 0.001, len(tmp)))
-
-        # уникализируем ID
-        tmp["agg_trade_id"] = tmp["agg_trade_id"] + (i + 1) * 10_000_000_000
-        tmp["first_trade_id"] = tmp["first_trade_id"] + (i + 1) * 10_000_000_000
-        tmp["last_trade_id"] = tmp["last_trade_id"] + (i + 1) * 10_000_000_000
-
-        dfs.append(tmp)
-
-    result = pd.concat(dfs, ignore_index=True)
-    return result
+producer = KafkaProducer(
+    bootstrap_servers="kafka:9092",
+    value_serializer=lambda v: json.dumps(v).encode("utf-8")
+)
 
 
-# -----------------------------------------
-# TASK
-# -----------------------------------------
+# =========================
+# X5 GENERATOR (per second)
+# =========================
 
-def build_dataset_x5():
+def generate_x5_second(df: pd.DataFrame) -> pd.DataFrame:
+
+    if df.empty:
+        return df
+
+    base = df.copy()
+
+    sec = base["event_time"].dt.floor("s")
 
     dfs = []
 
-    for filename in FILES:
+    # 5 полностью независимых реализаций
+    for i in range(5):
 
-        symbol = filename.split("-")[0]
-        zip_path = os.path.join(DATA_DIR, filename)
+        tmp = base.copy()
 
-        print(f"Processing {zip_path}")
+        shift_ms = np.random.randint(0, 1000, size=len(tmp))
+        tmp["event_time"] = sec + pd.to_timedelta(shift_ms, unit="ms")
 
-        with zipfile.ZipFile(zip_path) as z:
-            csv_name = z.namelist()[0]
+        tmp["price"] = tmp["price"].values * (1 + np.random.normal(0, 0.0003, len(tmp)))
+        tmp["quantity"] = tmp["quantity"].values * (1 + np.random.normal(0, 0.0005, len(tmp)))
 
-            with z.open(csv_name) as f:
-                df = pd.read_csv(
-                    f,
-                    header=None,
-                    names=[
-                        "agg_trade_id",
-                        "price",
-                        "quantity",
-                        "first_trade_id",
-                        "last_trade_id",
-                        "event_time",
-                        "is_buyer_maker",
-                        "is_best_match"
-                    ]
-                )
+        tmp["price"] = tmp["price"].clip(lower=1e-8)
+        tmp["quantity"] = tmp["quantity"].clip(lower=1e-8)
 
-        # удаляю лишнюю колонку
-        df = df.drop(columns=["is_best_match"])
+        if i > 0:
+            offset = i * 10_000_000_000
+            tmp["agg_trade_id"] += offset
+            tmp["first_trade_id"] += offset
+            tmp["last_trade_id"] += offset
 
-        # нормализация timestamp
-        df["event_time"] = pd.to_numeric(df["event_time"], errors="coerce")
-        df = df.dropna(subset=["event_time"])
+        dfs.append(tmp)
 
-        df["event_time"] = pd.to_datetime(
-            df["event_time"].astype("int64"),
-            unit="ms",
-            utc=True
-        )
+    return pd.concat(dfs, ignore_index=True)
 
-        # добавляю symbol
-        df["symbol"] = symbol
+# =========================
+# DOWNLOAD
+# =========================
 
-        # генерирую X5
-        df_x5 = generate_x5(df)
+def download():
 
-        dfs.append(df_x5)
+    logger.info("Downloading datasets")
 
-    # объединяю все пары
-    full_df = pd.concat(dfs, ignore_index=True)
-
-    print("Dataset rows (X5):", len(full_df))
-
-    # сортировка по времени
-    full_df = full_df.sort_values("event_time")
-
-    # оптимизация типов
-    full_df["is_buyer_maker"] = full_df["is_buyer_maker"].astype("int8")
-
-    # защита от отрицательных значений после шума
-    full_df["price"] = full_df["price"].clip(lower=0.00000001)
-    full_df["quantity"] = full_df["quantity"].clip(lower=0.00000001)
-
-    # конвертация в parquet
-    print("Converting to Parquet")
-
-    table = pa.Table.from_pandas(full_df, preserve_index=False)
-
-    pq.write_table(table, LOCAL_STREAM_PARQUET)
-    pq.write_table(table, LOCAL_BATCH_PARQUET)
-
-    # -----------------------------------------
-    # Upload STREAM dataset
-    # -----------------------------------------
-
-    print("Uploading STREAM X5 dataset to MinIO")
-
-    minio_client.fput_object(
-        MINIO_BUCKET,
-        MINIO_STREAM_OBJECT,
-        LOCAL_STREAM_PARQUET
+    minio_client.fget_object(
+        "clickhouse-lab-datasets",
+        "binance/july_2023/trades_stream.parquet",
+        STREAM_FILE
     )
 
-    # -----------------------------------------
-    # Upload BATCH dataset
-    # -----------------------------------------
-
-    print("Uploading BATCH X5 dataset to MinIO")
-
-    minio_client.fput_object(
-        MINIO_BUCKET,
-        MINIO_BATCH_OBJECT,
-        LOCAL_BATCH_PARQUET
+    minio_client.fget_object(
+        "clickhouse-lab-datasets",
+        "binance/july_2023/trades_batch.parquet",
+        BATCH_FILE
     )
 
-    print("Datasets X5 uploaded successfully")
+    logger.info("Download completed")
 
 
-# -----------------------------------------
+# =========================
+# STREAM TASK
+# =========================
+
+def stream_task():
+
+    logger.info("Stream started")
+
+    df = pd.read_parquet(STREAM_FILE)
+    df["event_time"] = pd.to_datetime(df["event_time"], utc=True)
+    df = df.sort_values("event_time")
+
+    next_tick = time.time()
+
+    for i in range(TOTAL_SECONDS):
+
+        current_second = START_TIME + pd.Timedelta(seconds=i)
+        next_second = current_second + pd.Timedelta(seconds=1)
+
+        df_sec = df[
+            (df["event_time"] >= current_second) &
+            (df["event_time"] < next_second)
+        ]
+
+        # ВСТАВКА X5 ЗДЕСЬ
+        if not df_sec.empty:
+            df_sec = generate_x5_second(df_sec)
+
+            rows = df_sec.to_dict("records")
+
+            for j in range(0, len(rows), STREAM_BLOCK):
+                chunk = rows[j:j + STREAM_BLOCK]
+
+                for r in chunk:
+                    producer.send(KAFKA_TOPIC, {
+                        "symbol": r["symbol"],
+                        "event_time": r["event_time"].strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
+                      # "event_time": str(r["event_time"]),
+                        "agg_trade_id": int(r["agg_trade_id"]),
+                        "price": float(r["price"]),
+                        "quantity": float(r["quantity"]),
+                        "first_trade_id": int(r["first_trade_id"]),
+                        "last_trade_id": int(r["last_trade_id"]),
+                        "is_buyer_maker": int(r["is_buyer_maker"])
+                    })
+
+                producer.flush()
+
+            logger.info(f"[STREAM] {current_second} rows={len(rows)}")
+
+        # синхронизация по времени
+        next_tick += 1
+        sleep_for = next_tick - time.time()
+
+        if sleep_for > 0:
+            time.sleep(sleep_for)
+        else:
+            logger.warning(f"[STREAM LAG] {-sleep_for:.2f} sec")
+
+    logger.info("Stream finished")
+
+
+# =========================
+# BATCH TASK
+# =========================
+
+def batch_task():
+
+    logger.info("Batch started")
+
+    df = pd.read_parquet(BATCH_FILE)
+    df["event_time"] = pd.to_datetime(df["event_time"], utc=True)
+    df = df.sort_values("event_time")
+
+    client = get_ch_client()
+
+    buffer = []
+    flush_queue = Queue()
+
+    last_flush_time = time.time()
+
+    # =========================
+    # BACKGROUND INSERTER
+    # =========================
+
+    def inserter():
+
+        while True:
+            batch = flush_queue.get()
+
+            if batch is None:
+                break
+
+            logger.info(f"[INSERT] rows={len(batch)}")
+
+            client.insert(
+                "binance_aggtrades_batch",
+                batch,
+                column_names=[
+                    "symbol",
+                    "event_time",
+                    "agg_trade_id",
+                    "price",
+                    "quantity",
+                    "first_trade_id",
+                    "last_trade_id",
+                    "is_buyer_maker"
+                ]
+            )
+
+            flush_queue.task_done()
+
+    thread = threading.Thread(target=inserter, daemon=True)
+    thread.start()
+
+    # =========================
+    # MAIN LOOP
+    # =========================
+
+    next_tick = time.time()
+
+    for i in range(TOTAL_SECONDS):
+
+        current_second = START_TIME + pd.Timedelta(seconds=i)
+        next_second = current_second + pd.Timedelta(seconds=1)
+
+        df_sec = df[
+            (df["event_time"] >= current_second) &
+            (df["event_time"] < next_second)
+        ]
+
+        # ВСТАВКА X5 ЗДЕСЬ
+        if not df_sec.empty:
+            df_sec = generate_x5_second(df_sec)
+
+        if not df_sec.empty:
+
+            for _, r in df_sec.iterrows():
+                buffer.append([
+                    r["symbol"],
+                    r["event_time"],
+                    int(r["agg_trade_id"]),
+                    float(r["price"]),
+                    float(r["quantity"]),
+                    int(r["first_trade_id"]),
+                    int(r["last_trade_id"]),
+                    int(r["is_buyer_maker"])
+                ])
+
+        now = time.time()
+
+        # flush по размеру
+        if len(buffer) >= BATCH_BLOCK:
+            flush_queue.put(buffer.copy())
+            buffer.clear()
+            last_flush_time = now
+
+        # flush по времени
+        elif (now - last_flush_time) >= BATCH_TIMEOUT and buffer:
+            flush_queue.put(buffer.copy())
+            buffer.clear()
+            last_flush_time = now
+
+        # синхронизация по времени
+        next_tick += 1
+        sleep_for = next_tick - time.time()
+
+        if sleep_for > 0:
+            time.sleep(sleep_for)
+        else:
+            logger.warning(f"[BATCH LAG] {-sleep_for:.2f} sec")
+
+    # финальный flush
+    if buffer:
+        flush_queue.put(buffer.copy())
+
+    flush_queue.put(None)
+    thread.join()
+
+    logger.info("Batch finished")
+
+
+# =========================
 # DAG
-# -----------------------------------------
-
-default_args = {
-    "owner": "airflow",
-    "retries": 1
-}
+# =========================
 
 with DAG(
-    dag_id="binance_build_parquet_dataset_x5",
+    dag_id="binance_replay_time_driven_x5",
     start_date=datetime(2025, 1, 1),
     schedule=None,
     catchup=False,
-    default_args=default_args,
-    tags=["dataset", "binance", "x5"]
+    tags=["binance", "time-driven", "x5"]
 ) as dag:
 
-    build = PythonOperator(
-        task_id="build_parquet_dataset_x5",
-        python_callable=build_dataset_x5
+    download_op = PythonOperator(
+        task_id="download",
+        python_callable=download
     )
+
+    stream_op = PythonOperator(
+        task_id="stream",
+        python_callable=stream_task
+    )
+
+    batch_op = PythonOperator(
+        task_id="batch",
+        python_callable=batch_task
+    )
+
+    download_op >> [stream_op, batch_op]
 ```
 </details>
 </br>
 
 #### 6.4. Для повторения эксперимента следует запустить DAG:
 - `binance_cleanup` - очистки данных 
-- `binance_replay_sync` - загрузки данных в Clickhouse по двум потокам batch и streaming, перед стартом изменить источник данных на `//clickhouse-lab-datasets/binance/july_2023/tradesX5.parquet`
+- `binance_replay_time_driven_x5.py` - загрузки данных в Clickhouse по двум потокам batch и streaming
 
 #### Результат шага
 
